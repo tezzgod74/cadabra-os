@@ -5,6 +5,7 @@
 import { placePanel } from '../../shared/coords';
 import { classifyAction, DEFAULT_SAFETY, describeAction } from '../../shared/safety';
 import type { ProviderInfo, Rect } from '../../shared/types';
+import { installPromo } from './promo';
 
 const STAGE = { width: 1280, height: 800 };
 const WORK = { x: 0, y: 0, width: 1280, height: 752 };
@@ -54,7 +55,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function rectOf(id: string, grow = 0): Rect {
   const r = document.getElementById(id)!.getBoundingClientRect();
-  return { x: r.x - grow, y: r.y - grow, width: r.width + grow * 2, height: r.height + grow * 2 };
+  // Relative to the desktop (the overlay's coordinate space), which the promo layout offsets.
+  const o = document.getElementById('desktop')!.getBoundingClientRect();
+  return { x: r.x - o.x - grow, y: r.y - o.y - grow, width: r.width + grow * 2, height: r.height + grow * 2 };
 }
 function centerOf(id: string) {
   const r = rectOf(id);
@@ -473,6 +476,8 @@ async function show(state: string, opts: { reducedMotion?: boolean } = {}) {
 // Keep in sync with DEMO_STATES in src/main/demo-stage.ts.
 const DEMO_STATE_NAMES = ['summon-ripple', 'window-scan', 'panel-idle', 'panel-thinking', 'panel-streaming', 'panel-answer', 'highlight-rings', 'ghost-moving', 'ghost-click', 'confirm', 'model-picker', 'voice-listening', 'settings', 'dismiss', 'app-choices', 'app-launch', 'shortcut-recorder', 'onboarding-welcome', 'onboarding-name', 'onboarding-backend', 'onboarding-voice', 'onboarding-done', 'settings-accounts', 'sign-in-gemini', 'setup-card', 'acting-hud', 'onboarding-claude', 'claude-install-consent', 'claude-signed-in', 'settings-voice', 'onboarding-assistant', 'voice-status-ok', 'voice-status-reconnecting', 'voice-status-blocked', 'voice-ptt-not-working', 'settings-web', 'voice-status-headset', 'settings-email', 'settings-greetings', 'claude-install-progress', 'claude-install-manual', 'claude-connect', 'claude-test-ok', 'settings-skills', 'settings-announcements'];
 (window as any).demo = { show, states: DEMO_STATE_NAMES };
+// `npm run demo:video`: the promo timeline (scripts/record-demo.ts).
+if (new URLSearchParams(location.search).has('promo')) installPromo({ toPanel, toOverlay, summon: () => summon(), reset, rectOf, centerOf, panel: PANEL, panelFrame });
 (window as any).demoReady = Promise.resolve();
 
 if (!capture && !bare) {

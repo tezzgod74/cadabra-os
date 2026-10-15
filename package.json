@@ -12,6 +12,7 @@
     "demo": "electron-vite build && node scripts/run-electron.mjs --demo",
     "demo:live": "electron-vite build && node scripts/run-electron.mjs --demo-live",
     "screenshots": "electron-vite build && node scripts/run-electron.mjs --demo --screenshots",
+    "demo:video": "npx tsx scripts/record-demo.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src test",
     "test": "vitest run",

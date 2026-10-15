@@ -2,6 +2,7 @@ import { app, BrowserWindow } from 'electron';
 import path from 'node:path';
 import { CadabraApp } from './app';
 import { runDemoStage } from './demo-stage';
+import { recordPromo } from './promo-recorder';
 import { runSelfTest } from './selftest';
 import { runVoiceMeasure, runVoiceSoak, runVoiceTest } from './voicetest';
 import { runAppTest } from './apptest';
@@ -51,7 +52,13 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 
 if (flag('--demo')) {
   // Visual preview stage: every state rendered in one window, no hook, no backend.
-  app.whenReady().then(() => runDemoStage({ screenshots: flag('--screenshots') }));
+  const promo = process.argv.find((a) => a.startsWith('--promo='))?.slice('--promo='.length);
+  app.whenReady().then(() =>
+    promo
+      ? // scripts/record-demo.ts: the promo video from the staged demo (offscreen; synthetic data only).
+        recordPromo({ out: promo, ffmpeg: process.env.CADABRA_FFMPEG || 'ffmpeg', durations: JSON.parse(process.env.CADABRA_PROMO_DURS || '{}') })
+      : runDemoStage({ screenshots: flag('--screenshots') }),
+  );
   app.on('window-all-closed', () => app.quit());
 } else {
   if (!app.requestSingleInstanceLock()) {
