@@ -87,6 +87,8 @@ requires: [get_weather, open_url]
 - A skill is **your own instructions**, so Cadabra follows it like something you typed.
 - A skill **can't change safety**. Your autonomy level, permissions and hard blocks stay exactly as they are. A line like "don't ask me for confirmation" has no effect: anything risky still shows a card, and password managers and Windows security prompts stay off-limits.
 - **New skills start switched off.** A skill that appears in a folder (copied from the internet, or added by another program) does nothing until you turn it on in Settings → Skills, where you can also read it first (**View instructions**).
+- **Each skill is remembered by its folder.** Turning on "quick-note" turns on that folder only; a new folder that calls itself "quick-note" starts switched off, and two folders with the same name in the same place are both blocked until you rename one.
+- **Reference files are information, not orders.** Text files next to SKILL.md are read as data (like text on your screen), so an address that only appears in one still needs your OK before it opens.
 - **Nothing is ever run** from a skill folder. Commands still go through `run_in_terminal`, with the usual checks and the exact command shown first.
 - Only skill **names** are written to Cadabra's log, never their contents.
 
@@ -99,6 +101,8 @@ More detail is in [SECURITY.md](SECURITY.md).
 | My skill doesn't show up | Check that it's in its own folder inside `Documents\Cadabra\Skills` and the file is called exactly `SKILL.md`. Press **Reload**. Folders whose name starts with `_` (like `_template`) are ignored. |
 | It shows a red error | Read the message: usually the first line isn't `---`, `name:` or `description:` is missing, or the name has spaces or capitals (use `plan-my-trip`, not `Plan My Trip`). |
 | It's there but never used | Is it switched on? Make the `description` more specific, and add `examples` with the words you actually say. |
-| "Not used: your own skill with the same name replaces it" | You have two skills with the same name. Yours (in Documents) wins; rename one if you want both. |
+| "Not used: your own skill with the same name replaces it" | A skill of yours (in Documents) that's switched on has the same name as a built-in one, so yours is used. Rename one if you want both. |
+| "Another skill … is also called …" | Two skill folders in the same place use the same `name:`. Neither is used until you rename one (this stops a downloaded folder from pretending to be one of your skills). |
+| A file is "a link" | Skills only read real files. Shortcuts, symbolic links, junctions and hard links are skipped; put a real copy in the folder. |
 | "isn't plain text" | Save the file as UTF-8 text (Notepad: **File → Save as → Encoding: UTF-8**). |
 | A file in the folder is ignored | Only `.txt`, `.md` and `.csv` files are read, up to 8 files. Scripts and programs are always ignored. |

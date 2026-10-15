@@ -4,6 +4,14 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.7
+
+- **Skills, safer identity:** a skill's on/off state now belongs to its folder, not the name inside SKILL.md. A newly appearing folder never inherits another skill's state; two folders with the same name in the same place are both blocked (Settings says why) until one is renamed; and your own skill replaces a built-in one only when yours is switched on.
+- **Skills, links:** symbolic links, junctions and hard-linked files in skill folders are never read.
+- **Skills, reference files:** extra files are treated as information, not instructions; an address that only appears in one asks before opening. Settings → View shows them.
+- **Skills:** "New skill from template" opens Notepad by its full Windows path.
+- **Announcements:** overlapping announcements no longer lose each other's crash-recovery records; when sound comes back up, an app whose volume you changed during the announcement keeps your change; and the wake word returns to exactly the state it was in before.
+
 ## 0.9.6 — Announcements
 
 - **Announcements:** "Cadabra, make an announcement: dinner is ready" (or "announce that…") at the PC, or "Announcement: …" / "Announce: …" / 📢 from WhatsApp, says the text out loud on the PC, word for word, without going to the AI. Works while the PC is locked and when spoken replies are off (the Windows voice speaks if the natural voice isn't installed). WhatsApp replies "📢 Announced on your PC" or says why not (for example, muted sound).

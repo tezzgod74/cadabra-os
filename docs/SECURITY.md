@@ -70,7 +70,7 @@ The backends get no raw shell. `run_in_terminal` opens a visible terminal and ru
 - Allowed while the PC is locked, because it doesn't touch the screen or input. Muted speakers → not announced, and the sender is told.
 - Limits: 500 characters (the sender is told if it was shortened), 6 a minute. Logs record that an announcement happened, never its text.
 - The `announce` tool (for the AI, for example via a skill) goes through the gate: no card at the default level when the user asked for an announcement in that request; a card with the exact text otherwise, and always at "ask before every action".
-- Ducking other apps: the helper lowers other apps' audio sessions and restores them afterwards. It also restores them when the app goes away (helper stdin closed), and the app keeps a copy of the saved volumes on disk to restore on the next start after a crash.
+- Ducking other apps: the helper lowers other apps' audio sessions and restores them afterwards, but only those still at the level Cadabra set (a change the user made meanwhile is kept). Crash-recovery records from overlapping announcements are merged, and each announcement removes only its own. It also restores them when the app goes away (helper stdin closed), and the app keeps a copy of the saved volumes on disk to restore on the next start after a crash.
 
 ## Skills
 
@@ -78,6 +78,9 @@ Skills (docs/SKILLS.md) are owner-authored instructions stored as text files.
 
 - **Trust model:** a skill's text is treated as the owner's own instructions, so the model follows it like a typed request. It is still delivered fenced (a per-request nonce tag, escaped, so it can't close the fence or forge Cadabra's tags) and labelled as owner-authored. It is **never** added to the run's prompt, which the gate uses for "the user's own words" checks.
 - **No effect on safety:** skills can't change the autonomy level, grants, safety settings or hard blocks; no tool exists for that. Every action a skill leads to goes through the gate like any other. Tests check that "never ask for confirmation" in a skill changes nothing.
+- **Identity:** enable state is keyed by source + folder, never by the `name:` inside SKILL.md, so a new folder never inherits another skill's state. The same name twice within one source is an error for all copies; across sources, a higher-precedence copy wins only when it is itself enabled.
+- **Reference files are data:** a skill's extra files are fenced as untrusted reference data (not owner instructions) and added to the run's screen corpus, so an address that only appears there gets a card at the default level. Settings → View shows them too.
+- **No links:** symbolic links, junctions and hard-linked files (nlink > 1) are never read.
 - **Disabled until enabled:** skills found on disk start disabled, except the shipped examples. The user turns each one on in Settings → Skills after reading it. Enable flags are stored in settings and can't be set by the generic renderer settings patch.
 - **Instructions only:** nothing in a skill folder is executed. Only `.md`, `.txt` and `.csv` files are read; other files (scripts, programs) are ignored. SKILL.md is capped at 32 KB, extra files at 16 KB each (8 files, 48 KB in total), and `use_skill` output at 64 KB. Binary or non-UTF-8 files are rejected.
 - **Logs:** only skill names are logged, never contents.

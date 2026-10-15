@@ -222,7 +222,7 @@ fn dispatch(method: &str, p: &Value) -> RpcResult {
         "unduck_audio" => {
             let list = p.get("sessions").and_then(|v| v.as_array()).map(|a| {
                 a.iter()
-                    .filter_map(|x| Some((x.get("id")?.as_str()?.to_string(), x.get("volume")?.as_f64()? as f32)))
+                    .filter_map(|x| Some((x.get("id")?.as_str()?.to_string(), x.get("volume")?.as_f64()? as f32, x.get("ducked").and_then(|d| d.as_f64()).map(|d| d as f32))))
                     .collect::<Vec<_>>()
             });
             session::unduck(list)

@@ -65,7 +65,7 @@ export function mergeSettings(raw: unknown, defaults: Settings = DEFAULT_SETTING
   if (typeof raw.claudeApiWeb === 'boolean') out.claudeApiWeb = raw.claudeApiWeb;
   if (isObj(raw.announcements)) out.announcements = mergeAnnouncements(raw.announcements);
   if (isObj(raw.skills) && isObj(raw.skills.enabled)) {
-    for (const [k, v] of Object.entries(raw.skills.enabled).slice(0, 500)) if (/^(builtin|install|user):[a-z0-9][a-z0-9-]{0,63}$/.test(k) && typeof v === 'boolean') out.skills.enabled[k] = v;
+    for (const [k, v] of Object.entries(raw.skills.enabled).slice(0, 500)) if (/^(builtin|install|user):[^\p{Cc}<>:"/\\|?*]{1,100}$/u.test(k) && typeof v === 'boolean') out.skills.enabled[k] = v;
   }
   if (Array.isArray(raw.micNotCall)) out.micNotCall = raw.micNotCall.filter((x): x is string => typeof x === 'string' && /^[\w .()+-]{1,120}$/i.test(x)).map((x) => x.toLowerCase()).slice(-30);
   if (isObj(raw.greetings)) {

@@ -1,6 +1,6 @@
 {
   "name": "cadabra-os",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "Ctrl + right-click anywhere to summon an AI that can see and act on your screen.",
   "main": "out/main/index.js",
   "scripts": {

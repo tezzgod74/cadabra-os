@@ -939,7 +939,7 @@ export class ToolHost {
     });
 
   /** 0.9.5: the owner's skills (set by the app; src/main/skills.ts). */
-  skills: { active(): { name: string; description: string }[]; instructions(name: string, nonce: string): string | null } | null = null;
+  skills: { active(): { name: string; description: string }[]; instructions(name: string, nonce: string): string | null; referenceTexts?(name: string): string[] } | null = null;
 
   /**
    * 0.9.5: skills are the owner's saved instructions. Loading one is read-only:
@@ -967,6 +967,9 @@ export class ToolHost {
           const nonce = this.run?.nonce ?? 'skill';
           const out = this.skills?.instructions(a.name, nonce);
           if (!out) return text(`There's no enabled skill called "${String(a.name).slice(0, 64)}". Call list_skills to see the enabled ones.`, true);
+          // S3: reference files count like screen text: an address that only appears there
+          // isn't "the owner's words", so opening it asks first (url-screen).
+          if (this.run) this.run.screen = [...(this.run.screen ?? []), ...(this.skills?.referenceTexts?.(a.name) ?? [])];
           console.log(`[skills] loaded: ${String(a.name).toLowerCase().slice(0, 64)}`);
           return text(out);
         },

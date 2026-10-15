@@ -188,7 +188,17 @@ fn collect_sessions(exclude: &[u32], fresh: bool) -> Result<Vec<serde_json::Valu
 // stdin EOF), and returned to the app, which keeps a copy on disk and restores
 // it on the next start if anything crashed in between.
 
-static DUCKED: std::sync::Mutex<Vec<(String, f32)>> = std::sync::Mutex::new(Vec::new());
+/// (session id, volume before, volume we set).
+static DUCKED: std::sync::Mutex<Vec<(String, f32, f32)>> = std::sync::Mutex::new(Vec::new());
+
+/// 0.9.7 (A2): restore only if the app is still at the level Cadabra set; if the
+/// user changed its volume during the announcement, keep their change.
+pub fn should_restore(current: f32, ducked: Option<f32>) -> bool {
+    match ducked {
+        Some(d) => (current - d).abs() < 0.011,
+        None => true,
+    }
+}
 
 /// Visit every audio session on every active render device.
 fn for_each_session(fresh: bool, mut f: impl FnMut(&IAudioSessionControl2, u32, bool)) -> Result<(), String> {
@@ -233,9 +243,9 @@ pub fn ducked_level(old: f32, factor: f32) -> f32 {
 /// Lower every other app's active audio session to `factor` of its volume.
 pub fn duck(exclude: &[u32], factor: f32) -> RpcResult {
     let me = std::process::id();
-    let mut saved: Vec<(String, f32)> = Vec::new();
+    let mut saved: Vec<(String, f32, f32)> = Vec::new();
     let already: Vec<String> = DUCKED.lock().map(|d| d.iter().map(|x| x.0.clone()).collect()).unwrap_or_default();
-    let visit = |ctl2: &IAudioSessionControl2, pid: u32, active: bool, saved: &mut Vec<(String, f32)>| {
+    let visit = |ctl2: &IAudioSessionControl2, pid: u32, active: bool, saved: &mut Vec<(String, f32, f32)>| {
         if !active || pid == 0 || pid == me || exclude.contains(&pid) {
             return;
         }
@@ -246,8 +256,9 @@ pub fn duck(exclude: &[u32], factor: f32) -> RpcResult {
         let Ok(vol) = ctl2.cast::<ISimpleAudioVolume>() else { return };
         unsafe {
             let Ok(old) = vol.GetMasterVolume() else { return };
-            if vol.SetMasterVolume(ducked_level(old, factor), std::ptr::null()).is_ok() {
-                saved.push((id, old));
+            let new = ducked_level(old, factor);
+            if vol.SetMasterVolume(new, std::ptr::null()).is_ok() {
+                saved.push((id, old, new));
             }
         }
     };
@@ -257,27 +268,33 @@ pub fn duck(exclude: &[u32], factor: f32) -> RpcResult {
     if let Ok(mut d) = DUCKED.lock() {
         d.extend(saved.iter().cloned());
     }
-    Ok(json!({ "ducked": saved.iter().map(|(i, v)| json!({ "id": i, "volume": v })).collect::<Vec<_>>() }))
+    Ok(json!({ "ducked": saved.iter().map(|(i, v, d)| json!({ "id": i, "volume": v, "ducked": d })).collect::<Vec<_>>() }))
 }
 
 /// Put ducked sessions back to their previous volume. `list` = from the app's
 /// crash-recovery file; None = everything this helper ducked.
-pub fn unduck(list: Option<Vec<(String, f32)>>) -> RpcResult {
-    let want: Vec<(String, f32)> = match list {
+pub fn unduck(list: Option<Vec<(String, f32, Option<f32>)>>) -> RpcResult {
+    let want: Vec<(String, f32, Option<f32>)> = match list {
         Some(l) => {
             if let Ok(mut d) = DUCKED.lock() {
                 d.retain(|x| !l.iter().any(|y| y.0 == x.0));
             }
             l
         }
-        None => DUCKED.lock().map(|mut d| std::mem::take(&mut *d)).unwrap_or_default(),
+        None => DUCKED.lock().map(|mut d| std::mem::take(&mut *d).into_iter().map(|(i, v, n)| (i, v, Some(n))).collect()).unwrap_or_default(),
     };
     let mut restored = 0;
+    let mut kept = 0;
     if !want.is_empty() {
         let mut visit = |ctl2: &IAudioSessionControl2, _pid: u32, _active: bool| {
             let Some(id) = session_id(ctl2) else { return };
-            let Some((_, old)) = want.iter().find(|x| x.0 == id) else { return };
+            let Some((_, old, ducked)) = want.iter().find(|x| x.0 == id) else { return };
             if let Ok(vol) = ctl2.cast::<ISimpleAudioVolume>() {
+                let current = unsafe { vol.GetMasterVolume() }.unwrap_or(-1.0);
+                if !should_restore(current, *ducked) {
+                    kept += 1;
+                    return;
+                }
                 if unsafe { vol.SetMasterVolume(old.clamp(0.0, 1.0), std::ptr::null()) }.is_ok() {
                     restored += 1;
                 }
@@ -287,7 +304,7 @@ pub fn unduck(list: Option<Vec<(String, f32)>>) -> RpcResult {
             for_each_session(true, &mut visit)?;
         }
     }
-    Ok(json!({ "restored": restored }))
+    Ok(json!({ "restored": restored, "keptUserChange": kept }))
 }
 
 /// Called when the app goes away (stdin closed): never leave other apps quiet.
@@ -304,6 +321,14 @@ pub fn lock_workstation() -> RpcResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn restore_only_untouched_levels() {
+        assert!(super::should_restore(0.2, Some(0.2)));
+        assert!(super::should_restore(0.205, Some(0.2)));
+        assert!(!super::should_restore(0.6, Some(0.2))); // the user turned it up meanwhile
+        assert!(super::should_restore(0.6, None));
+    }
+
     #[test]
     fn ducked_level_is_bounded() {
         assert_eq!(super::ducked_level(0.8, 0.25), 0.2);

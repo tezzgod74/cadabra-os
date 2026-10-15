@@ -31,6 +31,7 @@ import { HEALTH_TEXT, healthIsProblem, type VoiceHealth } from './voice/health';
 import { personaContext, voiceDialect } from '../shared/persona';
 import { Greeter, inQuietHours } from './greeter';
 import { Announcer, announceReply } from './announce';
+import { addDuckRecords, readDuckRecords, removeDuckRecords } from './duck-records';
 import { parseLocalAnnouncement } from '../shared/announce';
 import { WhatsAppClient } from './whatsapp/client';
 import { RemoteBridge } from './whatsapp/bridge';
@@ -1071,7 +1072,7 @@ export class CadabraApp {
         return {
           run,
           request: {
-            contextText: this.contextText(conv, voiceTurn, run.nonce!) + this.skillContext(text, run.nonce!),
+            contextText: this.contextText(conv, voiceTurn, run.nonce!) + this.skillContext(text, run.nonce!, run),
             image: shot ? { data: shot.data, mimeType: 'image/png' as const, width: shot.width, height: shot.height } : undefined,
           },
         };
@@ -1325,26 +1326,23 @@ export class CadabraApp {
     if (!h) return async () => undefined;
     const r = await h.duckAudio(app.getAppMetrics().map((m) => m.pid), 0.25).catch(() => null);
     const list = r?.ducked ?? [];
-    if (list.length) fs.writeFileSync(this.duckFile(), JSON.stringify(list));
+    // A1: merged with other announcements' records; each removes only its own.
+    addDuckRecords(this.duckFile(), list);
     return async () => {
-      if (list.length) await h.unduckAudio(list).catch(() => undefined);
-      fs.rm(this.duckFile(), { force: true }, () => undefined);
+      if (!list.length) return;
+      // A2: the helper restores only apps still at the lowered level (keeps user changes).
+      await h.unduckAudio(list).catch(() => undefined);
+      removeDuckRecords(this.duckFile(), list);
     };
   }
 
   /** On helper start: undo a ducking left over from a crash. */
   private async restoreDuckedAudio(): Promise<void> {
-    let list: { id: string; volume: number }[];
-    try {
-      list = JSON.parse(fs.readFileSync(this.duckFile(), 'utf8'));
-    } catch {
-      return;
-    }
-    if (Array.isArray(list) && list.length) {
-      const r = await this.helper?.unduckAudio(list.filter((x) => typeof x?.id === 'string' && typeof x?.volume === 'number')).catch(() => null);
-      console.log(`[announce] restored ${r?.restored ?? 0} app volume(s) left lowered by an interrupted announcement`);
-    }
-    fs.rm(this.duckFile(), { force: true }, () => undefined);
+    const list = readDuckRecords(this.duckFile());
+    if (!list.length) return;
+    const r = await this.helper?.unduckAudio(list).catch(() => null);
+    console.log(`[announce] restored ${r?.restored ?? 0} app volume(s) left lowered by an interrupted announcement${r?.keptUserChange ? ` (${r.keptUserChange} changed since, left as they are)` : ''}`);
+    if (r) removeDuckRecords(this.duckFile(), list);
   }
 
   /** "Cadabra, make an announcement: …" at the PC (voice or typed). */
@@ -1365,7 +1363,8 @@ export class CadabraApp {
     if (!this.skills) return { ok: false, error: 'Skills aren’t available.' };
     const r = this.skills.createFromTemplate(name);
     if (!r.ok) return r;
-    spawn('notepad.exe', [r.file], { detached: true, stdio: 'ignore' }).unref();
+    // S4: by full path, so a notepad.exe in the working folder or on PATH is never used.
+    spawn(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'notepad.exe'), [r.file], { detached: true, stdio: 'ignore' }).unref();
     return { ok: true, name: r.name };
   }
 
@@ -1379,7 +1378,7 @@ export class CadabraApp {
    * and, when the request closely matches a skill's examples (local fast path),
    * that skill's instructions preloaded. Never added to run.prompt.
    */
-  private skillContext(text: string, nonce: string): string {
+  private skillContext(text: string, nonce: string, run?: RunState): string {
     if (!this.skills) return '';
     const parts: string[] = [];
     const sum = this.skills.summary();
@@ -1388,6 +1387,8 @@ export class CadabraApp {
     if (hit) {
       const ins = this.skills.instructions(hit.name, nonce);
       if (ins) {
+        // S3: the skill's reference files are data (the "screen" corpus), not the owner's words.
+        if (run) run.screen = [...(run.screen ?? []), ...this.skills.referenceTexts(hit.name)];
         console.log(`[skills] fast path: ${hit.name}`);
         parts.push(`This request matches the owner's skill "${hit.name}"; it's loaded below, so follow it (no need to call use_skill).\n${ins}`);
       }
@@ -1666,7 +1667,7 @@ export class CadabraApp {
         return {
           run,
           request: {
-            contextText: `${this.contextText(conv, false, nonce)} REMOTE turn: the owner is chatting from WhatsApp on their phone, away from the PC. Short plain-text replies.${this.skillContext(text, nonce)}`,
+            contextText: `${this.contextText(conv, false, nonce)} REMOTE turn: the owner is chatting from WhatsApp on their phone, away from the PC. Short plain-text replies.${this.skillContext(text, nonce, run)}`,
             image: image ? { data: image.data, mimeType: image.mimeType as 'image/png', width: 0, height: 0 } : undefined,
           },
         };

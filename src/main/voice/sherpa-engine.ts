@@ -1,3 +1,4 @@
+import { WakeMuteHold } from '../duck-records';
 import { BrowserWindow, ipcMain, MessageChannelMain, session, utilityProcess, type UtilityProcess } from 'electron';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -336,6 +337,7 @@ export class SherpaVoiceEngine extends EventEmitter implements VoiceEngine {
     );
     // Push-to-talk-only mode: wake detection muted from the start.
     if (s.pushToTalk) proc.postMessage({ type: 'mute', muted: true });
+    this.wakeMuted = !!s.pushToTalk;
     this.mic!.webContents.send('mic:cmd', { type: 'start', label: s.inputDevice || '', raw: process.env.CADABRA_MIC_RAW === '1' });
   }
 
@@ -471,7 +473,11 @@ export class SherpaVoiceEngine extends EventEmitter implements VoiceEngine {
   }
 
   /** Push-to-talk-only mode on/off without restarting anything. */
+  /** The wake word's current mute state (push-to-talk, announcements…). */
+  wakeMuted = false;
+
   setWakeMuted(muted: boolean) {
+    this.wakeMuted = muted;
     this.proc?.postMessage({ type: 'mute', muted });
   }
 
@@ -817,8 +823,8 @@ export class SherpaVoiceEngine extends EventEmitter implements VoiceEngine {
     await this.ensureMicWindow();
     const onAbort = () => this.stopSpeaking();
     o.signal.addEventListener('abort', onAbort, { once: true });
-    const wakeWasMuted = !!this.o.settings().pushToTalk;
-    this.setWakeMuted(true);
+    // A3: put back whatever mute state the wake word had before.
+    const releaseWake = new WakeMuteHold(() => this.wakeMuted, (m) => this.setWakeMuted(m)).hold();
     // Every speech stream bumps speechGen once; any other bump is a stop (Esc, "stop", the wake word).
     let expected = this.speechGen;
     try {
@@ -835,7 +841,7 @@ export class SherpaVoiceEngine extends EventEmitter implements VoiceEngine {
     } finally {
       o.signal.removeEventListener('abort', onAbort);
       this.mic?.webContents.send('mic:cmd', { type: 'ann-config', on: false });
-      this.setWakeMuted(wakeWasMuted);
+      releaseWake();
     }
   }
 

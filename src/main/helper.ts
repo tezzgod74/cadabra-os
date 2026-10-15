@@ -60,6 +60,13 @@ type Pending = { resolve: (v: any) => void; reject: (e: Error) => void; timer: N
  * Client for native/cadabra-helper. Newline-delimited JSON-RPC over stdio.
  * Emits: 'summon' (SummonEvent), 'escape', 'hook' ({status}), 'exit', 'log'.
  */
+/** An app's audio session lowered for an announcement: its volume before, and the level Cadabra set. */
+export interface DuckedSession {
+  id: string;
+  volume: number;
+  ducked?: number;
+}
+
 export class HelperClient extends EventEmitter {
   private proc: ChildProcessWithoutNullStreams | null = null;
   private nextId = 1;
@@ -257,8 +264,9 @@ export class HelperClient extends EventEmitter {
   lockWorkstation = () => this.call('lock_workstation', {}, 3000);
   /** Round 10.5: other apps' audio sessions with their peak meter (read-only). */
   /** 0.9.6: lower other apps' audio sessions (restore with unduckAudio). */
-  duckAudio = (exclude: number[], factor: number) => this.call<{ ducked: { id: string; volume: number }[] }>('duck_audio', { exclude, factor }, 4000);
-  unduckAudio = (sessions?: { id: string; volume: number }[]) => this.call<{ restored: number }>('unduck_audio', sessions ? { sessions } : {}, 4000);
+  duckAudio = (exclude: number[], factor: number) => this.call<{ ducked: DuckedSession[] }>('duck_audio', { exclude, factor }, 4000);
+  /** Restores each session only if it's still at the ducked level (0.9.7, A2). */
+  unduckAudio = (sessions?: DuckedSession[]) => this.call<{ restored: number; keptUserChange?: number }>('unduck_audio', sessions ? { sessions } : {}, 4000);
   audioSessions = (exclude: number[]) => this.call<{ sessions: { exe: string; peak: number; pid: number }[] }>('audio_sessions', { exclude }, 2000);
   /** Round 10: report the next keyboard / mouse input once ('activity' event). `hooks` false = no hooks (test runs). */
   armActivity = (on: boolean) => this.call<{ hooks: boolean }>('arm_activity', { on }, 2000);

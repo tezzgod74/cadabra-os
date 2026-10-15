@@ -2,7 +2,11 @@
 // and rate limit, the Announcer (muted, quiet hours, stop, ducking restored), the
 // WhatsApp fast path (no AI, works while locked, "stop"), the announce tool's
 // gate, and settings persistence.
+import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { addDuckRecords, readDuckRecords, removeDuckRecords, WakeMuteHold } from '../src/main/duck-records';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Announcer, announceReply, type AnnouncerDeps } from '../src/main/announce';
 import { RemoteBridge, type RemoteState } from '../src/main/whatsapp/bridge';
@@ -225,5 +229,37 @@ describe('the announce tool and settings', async () => {
     expect(s.announcements).toMatchObject({ device: 'Living Room Speaker', repeat: 2, chime: true });
     expect(mergeSettings(JSON.parse(JSON.stringify(s))).announcements.device).toBe('Living Room Speaker'); // survives a save/load
     expect(sanitizeRendererPatch({ announcements: { device: 'X' } })).toEqual({ announcements: { device: 'X' } });
+  });
+});
+
+describe('0.9.7 review fixes (REVIEW-0.9.6 A1–A3)', () => {
+  it('A1: overlapping announcements merge crash-recovery records; each removes only its own', () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cadabra-duck-')), 'ducked-audio.json');
+    const a = [{ id: 'app-1', volume: 0.8, ducked: 0.2 }];
+    const b = [{ id: 'app-2', volume: 0.5, ducked: 0.125 }, { id: 'app-1', volume: 0.2, ducked: 0.05 }];
+    addDuckRecords(file, a);
+    addDuckRecords(file, b);
+    // app-1 keeps its ORIGINAL volume (0.8), not the already-lowered one.
+    expect(readDuckRecords(file)).toEqual([a[0], b[0]]);
+    removeDuckRecords(file, a);
+    expect(readDuckRecords(file)).toEqual([b[0]]);
+    removeDuckRecords(file, b);
+    expect(fs.existsSync(file)).toBe(false);
+  });
+  it('A2: the helper only restores apps still at the lowered level (Rust test restore_only_untouched_levels); the app passes the lowered level', () => {
+    expect(fs.readFileSync('native/cadabra-helper/src/session.rs', 'utf8')).toMatch(/fn should_restore\(current: f32, ducked: Option<f32>\)/);
+    expect(fs.readFileSync('src/main/helper.ts', 'utf8')).toMatch(/ducked\?: number/);
+  });
+  it('A3: the wake word goes back to its previous mute state, whatever it was', () => {
+    for (const before of [false, true]) {
+      let muted = before;
+      const calls: boolean[] = [];
+      const release = new WakeMuteHold(() => muted, (m) => (calls.push(m), (muted = m))).hold();
+      expect(muted).toBe(true);
+      release();
+      release(); // idempotent
+      expect(muted).toBe(before);
+      expect(calls).toEqual([true, before]);
+    }
   });
 });
