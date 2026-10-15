@@ -17,7 +17,7 @@ describe('shortToolName', () => {
   });
 });
 
-describe('Claude Agent SDK event mapping', () => {
+describe('Claude Code stream-json event mapping', () => {
   // Shapes follow sdk.d.ts (SDKSystemMessage / SDKPartialAssistantMessage / SDKAssistantMessage / SDKUserMessage / SDKResultMessage).
   const fixture = [
     { type: 'system', subtype: 'init', session_id: 'sess-1', tools: ['mcp__cadabra__see_screen'], mcp_servers: [{ name: 'cadabra', status: 'connected' }] },

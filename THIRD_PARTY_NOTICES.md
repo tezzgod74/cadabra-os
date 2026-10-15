@@ -16,21 +16,11 @@ Versions are the ones pinned in `package-lock.json` and `native/cadabra-helper/C
 | [imapflow](https://github.com/postalsys/imapflow) | 2.4.2 | MIT | Gmail IMAP (app-password mode). |
 | [mailparser](https://github.com/nodemailer/mailparser) | 3.9.39 | MIT | Pulls in `@zone-eu/mailsplit` (MIT OR EUPL-1.1+, used under MIT) and `nodemailer` (MIT-0). |
 | [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) | 1.32.1 | MIT | Model Context Protocol server for Cadabra's tools. |
-| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) | 0.133.0 | MIT | |
-| [@anthropic-ai/claude-agent-sdk](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) | 0.3.296 | **Proprietary** | See [the section below](#anthropic-aiclaude-agent-sdk-proprietary). |
 | [@github/copilot-sdk](https://github.com/github/copilot-sdk) | 1.0.19 | MIT | The platform runtime packages (`@github/copilot-sdk-*`) are excluded from the installer. |
 | [zod](https://github.com/colinhacks/zod) | 4.6.5 | MIT | |
 | Other transitive npm dependencies | — | MIT (about 130 packages), ISC (8), BSD-2-Clause (`json-schema-typed`, `domelementtype`, `domhandler`, `domutils`, `entities`), BSD-3-Clause (`fast-uri`, `qs`, `deepmerge-ts`), Unlicense (`fast-sha256`) | Run `npm ls --omit=dev --all` to list them. Each package's licence file is inside `app.asar` under `node_modules/`. |
 
 `marked` (MIT) and the other dev dependencies (TypeScript, Vite, electron-vite, electron-builder, ESLint, Vitest) are only used to build or test the app and are not shipped.
-
-### @anthropic-ai/claude-agent-sdk (proprietary)
-
-- **Licence:** not open source. Its `LICENSE.md` reads: "© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance". It is governed by Anthropic's legal agreements, not by this project's MIT licence.
-- **How it ships:** the JavaScript package (version 0.3.296) is **bundled in the installer** inside `app.asar`. Its native runtime (`@anthropic-ai/claude-agent-sdk-*`) is excluded.
-- **Before a public installer:** redistribution must be **confirmed with Anthropic**, or the app must stop bundling it and load the SDK at run time from the user's own installation instead. Until then, treat installers built from this repository as not cleared for public distribution.
-- **Data collection:** the SDK's README says that when you use it, Anthropic collects feedback, including usage data (such as code acceptance or rejections), associated conversation data and user feedback submitted via `/bug`; see https://code.claude.com/docs/en/data-usage. This applies when the Claude backend runs through the SDK (API key, Bedrock or Vertex).
-- Cadabra's own source code doesn't include any of the SDK's code; it only imports the package.
 
 ### Native helper (Rust crates)
 
@@ -78,7 +68,8 @@ The app downloads these from the sherpa-onnx GitHub releases when you turn the f
 
 Cadabra drives tools you install and sign in to yourself. It does not bundle them, and their own terms apply:
 
-- Claude Code (`claude`), Anthropic API, Amazon Bedrock and Google Vertex AI (Anthropic, AWS and Google terms).
+- **Claude Code** (`claude`), Anthropic's app, for every Claude mode (subscription, API key, Bedrock, Vertex). Users install it themselves (Cadabra can run Anthropic's official installer with their consent); it is **not bundled or redistributed** by Cadabra OS and is governed by Anthropic's terms (https://code.claude.com/docs/en/legal-and-compliance). Cadabra contains no Anthropic SDK code.
+- The Anthropic API, Amazon Bedrock and Google Vertex AI, reached through Claude Code (Anthropic, AWS and Google terms).
 - OpenAI Codex CLI (`codex`) and the OpenAI API, including the optional cloud voices (`gpt-4o-mini-tts`).
 - Google Gemini CLI (`gemini`) and the Gemini API.
 - GitHub Copilot CLI.

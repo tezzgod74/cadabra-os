@@ -250,7 +250,7 @@ describe('Part B: Claude subscription via Claude Code', () => {
       const status: string[] = [];
       const auth = await p.signIn('claude-code', { openUrl: () => undefined, status: (t) => status.push(t) });
       expect(opened).toEqual([cmd]);
-      expect(status[0]).toMatch(/terminal/);
+      expect(status[0]).toMatch(/own sign-in/);
       expect(auth).toMatchObject({ ok: true });
       expect(auth.detail).toBe('Signed in to Claude Code (Max)');
       expect(JSON.stringify(auth)).not.toMatch(/@/); // privacy: the email is never shown

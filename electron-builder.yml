@@ -10,7 +10,6 @@ files:
   - "!**/*.map"
   # Agent runtimes are NOT shipped (250 MB+ each, docs/research.md): Cadabra
   # uses the user's installed Claude Code / Copilot / Codex CLIs instead.
-  - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
   - "!node_modules/@github/copilot-sdk-*/**"
   - "!node_modules/@openai/codex-*/**"
 asar: true

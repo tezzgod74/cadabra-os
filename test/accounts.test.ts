@@ -201,7 +201,7 @@ describe('Claude: API key only, honest note, per-chat budget', () => {
     expect(opts[0].label).toBe('Use my Claude subscription (via Claude Code)');
     expect(opts[0].note).toMatch(/Pro\/Max limits/);
     expect(opts[0].note).toMatch(/terms may restrict use of subscriptions by third-party apps — use at your own risk/);
-    expect(opts[1].note).toMatch(/Billed per use, separately from any Claude subscription/);
+    expect(opts[1].note).toMatch(/Billed per use by Anthropic, separately from any Claude subscription/);
   });
 
   it('maps max-budget and max-turns results to clear messages', () => {

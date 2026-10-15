@@ -2,7 +2,6 @@
 import { describe, expect, it } from 'vitest';
 import { farewell, isClosing, isSignOff, answerLocally } from '../src/shared/smalltalk';
 import { checkWeb } from '../src/shared/web-guard';
-import { claudeSdkOptions } from '../src/main/providers/claude';
 import { claudeCliArgs, claudeWebHookSettings, CLAUDE_WEB_TOOLS } from '../src/main/providers/claude-cli';
 import { geminiSystemSettings, isGeminiWebToolCall, GEMINI_WEB_TOOLS } from '../src/main/providers/gemini';
 import { isWebSearchItem, mapCodexNotification } from '../src/main/providers/codex';
@@ -96,19 +95,16 @@ describe('B. web access', () => {
     // The user's own words are fine.
     expect(checkWeb({ ...base, prompt: 'track order AB12CD34EF', tool: 'search', text: 'AB12CD34EF tracking' }).decision).toBe('allow');
   });
-  it('Claude (API key): only web tools, each through canUseTool → guard; off = locked down as before', async () => {
-    const off: any = claudeSdkOptions({ model: 'm', server: {}, workDir: '.', env: {} });
-    expect(off).toMatchObject({ tools: [], permissionMode: 'dontAsk', allowedTools: ['mcp__cadabra__*'] });
-    expect(off.canUseTool).toBeUndefined();
-    const calls: string[] = [];
-    const on: any = claudeSdkOptions({ model: 'm', server: {}, workDir: '.', env: {}, webGuard: async (t, x) => (calls.push(`${t}:${x}`), { allow: !x.includes('482913'), reason: 'private' }) });
-    expect(on.tools).toEqual(['WebSearch', 'WebFetch']);
-    expect(on.permissionMode).toBe('default');
-    expect(on.allowedTools).toEqual(['mcp__cadabra__*']);
-    expect(await on.canUseTool('WebSearch', { query: 'news' })).toMatchObject({ behavior: 'allow' });
-    expect(await on.canUseTool('WebFetch', { url: 'https://x.example/?c=482913' })).toMatchObject({ behavior: 'deny' });
-    expect(await on.canUseTool('Bash', { command: 'dir' })).toMatchObject({ behavior: 'deny' });
-    expect(calls).toEqual(['search:news', 'fetch:https://x.example/?c=482913']);
+  it('Claude (API key, via Claude Code --bare): the same web lockdown as the subscription mode', () => {
+    const off = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', bare: true });
+    expect(off[off.indexOf('--tools') + 1]).toBe('');
+    expect(off[off.indexOf('--permission-mode') + 1]).toBe('dontAsk');
+    expect(off[off.indexOf('--allowedTools') + 1]).toBe('mcp__cadabra__*');
+    const on = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', webSettingsFile: 's.json', bare: true });
+    expect(on[on.indexOf('--tools') + 1]).toBe('WebSearch,WebFetch');
+    expect(on[on.indexOf('--settings') + 1]).toBe('s.json');
+    // Web tools are never allow-listed: under dontAsk they're denied unless Cadabra's hook says yes.
+    expect(on[on.indexOf('--allowedTools') + 1]).toBe('mcp__cadabra__*');
   });
   it('Claude Code: web tools only via --tools, NOT allow-listed, approved by an HTTP hook (fail-closed)', () => {
     const a = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', webSettingsFile: 's.json' });

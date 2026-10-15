@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { accountAllowed, authSourceAllowed, AUTH_ENV_VARS, ClaudeProvider, claudeSdkEnv, claudeSdkOptions, NoApiKeyError } from '../src/main/providers/claude';
-import { claudeCodeEnv } from '../src/main/providers/claude-cli';
+import { accountAllowed, authSourceAllowed, AUTH_ENV_VARS, ClaudeProvider, claudeApiEnv, NoApiKeyError } from '../src/main/providers/claude';
+import { claudeCliArgs, claudeCodeEnv } from '../src/main/providers/claude-cli';
 import type { ProviderEvent } from '../src/shared/types';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cadabra-r4-'));
@@ -30,95 +30,156 @@ const DIRTY = {
   CLAUDE_CODE_USE_BEDROCK: '1',
 };
 
-describe('AUTH-1: API-key mode can never fall back to a subscription login', () => {
+/** A `.cmd` wrapper so the fake Claude Code app runs like the real claude.exe. */
+function fakeClaude(): string {
+  const cmd = path.join(tmp, 'claude.cmd');
+  if (!fs.existsSync(cmd)) fs.writeFileSync(cmd, `@"${process.execPath}" "${path.resolve('test/fixtures/fake-claude.mjs')}" %*\r\n`);
+  return cmd;
+}
+const mcp = async () => ({ url: 'http://127.0.0.1:1/mcp', token: 'T' });
+function apiProvider(dir: string, key: string | undefined, extra: Record<string, unknown> = {}) {
+  return new ClaudeProvider({ tools: () => [], apiKey: () => key, exePath: () => fakeClaude(), workDir: path.join(tmp, dir), configDir: path.join(tmp, `${dir}-cfg`), version: '1', route: () => 'api-key', mcp, ...extra });
+}
+async function collect(p: ClaudeProvider): Promise<ProviderEvent[]> {
+  const evs: ProviderEvent[] = [];
+  for await (const ev of p.send({ prompt: 'hi', contextText: '', model: 'claude-haiku-5-5', signal: new AbortController().signal })) evs.push(ev);
+  return evs;
+}
+const readLog = (f: string) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+
+describe('AUTH-1: API-key mode (via the user’s Claude Code app) can never fall back to a subscription login', () => {
   it('layer 1: no key → refuses (throws), nothing to spawn', () => {
-    expect(() => claudeSdkEnv(DIRTY, { route: 'api-key', key: '', configDir: 'X', version: '1' })).toThrow(NoApiKeyError);
+    expect(() => claudeApiEnv(DIRTY, { route: 'api-key', key: '', configDir: 'X', version: '1' })).toThrow(NoApiKeyError);
   });
   it('layer 2 + 3: scrubs every OAuth / alternative-auth variable and uses a private config dir', () => {
-    const env = claudeSdkEnv(DIRTY, { route: 'api-key', key: 'sk-ant-mine', configDir: path.join(tmp, 'cfg'), version: '1' });
+    const env = claudeApiEnv(DIRTY, { route: 'api-key', key: 'sk-ant-mine', configDir: path.join(tmp, 'cfg'), version: '1' });
     expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-mine'); // ours, not the inherited one
     expect(env.CLAUDE_CONFIG_DIR).toBe(path.join(tmp, 'cfg'));
     for (const k of ['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_OAUTH_REFRESH_TOKEN', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_USE_BEDROCK']) expect(env[k], k).toBeUndefined();
     expect(env.PATH).toBe(process.env.PATH);
-    const bedrock = claudeSdkEnv(DIRTY, { route: 'bedrock', configDir: 'X', version: '1' });
+    const bedrock = claudeApiEnv(DIRTY, { route: 'bedrock', configDir: 'X', version: '1' });
     expect(bedrock.CLAUDE_CODE_USE_BEDROCK).toBe('1');
     expect(bedrock.ANTHROPIC_API_KEY).toBeUndefined();
     expect(AUTH_ENV_VARS).toContain('CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR');
   });
-  it('the SDK options keep --bare, no built-in tools, only Cadabra MCP', () => {
-    const o: any = claudeSdkOptions({ model: 'm', server: {}, workDir: tmp, env: {}, exe: 'x' });
-    expect(o.extraArgs).toEqual({ bare: null });
-    expect(o.tools).toEqual([]);
-    expect(o.allowedTools).toEqual(['mcp__cadabra__*']);
-    expect(o.settingSources).toEqual([]);
-    expect(o.strictMcpConfig).toBe(true);
+  it('the API-key command line keeps --bare, no built-in tools, only Cadabra MCP, and never carries the key', () => {
+    const a = claudeCliArgs({ model: 'm', mcpConfigFile: 'm.json', systemPromptFile: 'p.txt', bare: true });
+    expect(a).toContain('--bare');
+    expect(a[a.indexOf('--tools') + 1]).toBe('');
+    expect(a[a.indexOf('--allowedTools') + 1]).toBe('mcp__cadabra__*');
+    expect(a[a.indexOf('--setting-sources') + 1]).toBe('');
+    expect(a).toContain('--strict-mcp-config');
+    expect(a).toContain('--max-budget-usd');
+    expect(a).toContain('--max-turns');
+    expect(a.join(' ')).not.toMatch(/sk-ant/);
+    expect(claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p' })).not.toContain('--bare'); // subscription mode
   });
-  it('layer 4: only our API key is an acceptable credential source', () => {
+  it('layer 4 backstop: only our API key is an acceptable credential source', () => {
     expect(authSourceAllowed('api-key', { apiKeySource: 'ANTHROPIC_API_KEY' })).toBe(true);
     for (const src of ['none', 'oauth', '/login managed key', 'apiKeyHelper', undefined]) expect(authSourceAllowed('api-key', { apiKeySource: src as any }), String(src)).toBe(false);
   });
-  it('end to end through the real Agent SDK with a fake runtime: no key → error and no spawn', async () => {
+  it('end to end: no key → error and no spawn', async () => {
     const logFile = path.join(tmp, 'nokey.log');
     process.env.FAKE_LOG = logFile;
-    const p = new ClaudeProvider({ tools: () => [], apiKey: () => undefined, exePath: () => path.resolve('test/fixtures/fake-claude-sdk.mjs'), workDir: path.join(tmp, 'w1'), version: '1', route: () => 'api-key' });
-    const evs: ProviderEvent[] = [];
-    for await (const ev of p.send({ prompt: 'hi', contextText: '', model: 'claude-haiku-5-5', signal: new AbortController().signal })) evs.push(ev);
+    const evs = await collect(apiProvider('w1', undefined));
     expect(evs).toEqual([{ type: 'error', message: new NoApiKeyError().message }]);
-    expect(fs.existsSync(logFile)).toBe(false); // the runtime was never started
+    expect(fs.existsSync(logFile)).toBe(false); // Claude Code was never started
   });
-  it('end to end (backstop): a runtime whose init reports another credential ends the session', async () => {
-    const logFile = path.join(tmp, 'oauth.log');
+  it('end to end: the key reaches only the child’s environment; --bare, private config dir, no OAuth variables', async () => {
+    const logFile = path.join(tmp, 'ok.log');
     process.env.FAKE_LOG = logFile;
-    process.env.FAKE_AUTH_SOURCE = 'none'; // e.g. a claude.ai login
-    process.env.FAKE_ACCOUNT_SOURCE = 'ANTHROPIC_API_KEY'; // account info lies / is stale: init still catches it
     process.env.CLAUDE_CODE_OAUTH_TOKEN = 'leak-test';
-    const p = new ClaudeProvider({ tools: () => [], apiKey: () => 'sk-ant-test', exePath: () => path.resolve('test/fixtures/fake-claude-sdk.mjs'), workDir: path.join(tmp, 'w2'), configDir: path.join(tmp, 'cfg2'), version: '1', route: () => 'api-key' });
+    const p = apiProvider('w0', 'sk-ant-test');
     try {
-      const evs: ProviderEvent[] = [];
-      for await (const ev of p.send({ prompt: 'hi', contextText: '', model: 'claude-haiku-5-5', signal: new AbortController().signal })) evs.push(ev);
-      expect(evs.some((e) => e.type === 'error' && /wasn’t using your API key/.test(e.message))).toBe(true);
-      expect(evs.some((e) => e.type === 'text')).toBe(false);
-      const log = JSON.parse(fs.readFileSync(logFile, 'utf8').split('\n')[0]);
+      const evs = await collect(p);
+      expect(evs.filter((e) => e.type === 'text').map((e: any) => e.delta).join('')).toBe('Ready.');
+      const log = readLog(logFile)[0];
       expect(log.argv).toContain('--bare');
-      expect(log.configDir).toBe(path.join(tmp, 'cfg2'));
+      expect(log.argv.join(' ')).not.toContain('sk-ant-test');
+      expect(log.apiKey).toBe('sk-ant-test');
+      expect(log.configDir).toBe(path.join(tmp, 'w0-cfg'));
       expect(log.authVars.filter((k: string) => /OAUTH|AUTH_TOKEN/.test(k))).toEqual([]);
     } finally {
-      delete process.env.FAKE_AUTH_SOURCE;
-      delete process.env.FAKE_ACCOUNT_SOURCE;
       delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
       p.reset();
     }
   }, 30_000);
-  it('preventive: account info reporting another credential → nothing is sent at all', async () => {
-    const logFile = path.join(tmp, 'pre.log');
+  it('end to end (backstop): a turn whose init reports another credential ends the session', async () => {
+    const logFile = path.join(tmp, 'oauth.log');
     process.env.FAKE_LOG = logFile;
-    process.env.FAKE_AUTH_SOURCE = 'none';
-    const p = new ClaudeProvider({ tools: () => [], apiKey: () => 'sk-ant-test', exePath: () => path.resolve('test/fixtures/fake-claude-sdk.mjs'), workDir: path.join(tmp, 'w3'), configDir: path.join(tmp, 'cfg3'), version: '1', route: () => 'api-key' });
+    process.env.FAKE_AUTH_SOURCE = 'none'; // e.g. a claude.ai login
+    const p = apiProvider('w2', 'sk-ant-test'); // initialize says ANTHROPIC_API_KEY (stale / lying): init still catches it
     try {
-      const evs: ProviderEvent[] = [];
-      for await (const ev of p.send({ prompt: 'hi', contextText: '', model: 'claude-haiku-5-5', signal: new AbortController().signal })) evs.push(ev);
-      expect(evs.some((e) => e.type === 'error' && /didn’t send anything/.test(e.message))).toBe(true);
-      await new Promise((r) => setTimeout(r, 200));
-      const lines = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
-      expect(lines.some((l) => l.userMessage)).toBe(false);
+      const evs = await collect(p);
+      expect(evs.some((e) => e.type === 'error' && /wasn’t using your API key/.test(e.message))).toBe(true);
+      expect(evs.some((e) => e.type === 'text')).toBe(false);
     } finally {
       delete process.env.FAKE_AUTH_SOURCE;
       p.reset();
     }
   }, 30_000);
-  it('accountAllowed: only the route’s own credential', () => {
+  it('preventive: Claude Code’s initialize answer reporting another credential → nothing is sent at all', async () => {
+    const logFile = path.join(tmp, 'pre.log');
+    process.env.FAKE_LOG = logFile;
+    process.env.FAKE_ACCOUNT_SOURCE = 'none';
+    process.env.FAKE_TOKEN_SOURCE = 'claude.ai';
+    const p = apiProvider('w3', 'sk-ant-test');
+    try {
+      const evs = await collect(p);
+      expect(evs.some((e) => e.type === 'error' && /didn’t send anything/.test(e.message))).toBe(true);
+      await new Promise((r) => setTimeout(r, 200));
+      expect(readLog(logFile).some((l) => l.userMessage)).toBe(false);
+    } finally {
+      delete process.env.FAKE_ACCOUNT_SOURCE;
+      delete process.env.FAKE_TOKEN_SOURCE;
+      p.reset();
+    }
+  }, 30_000);
+  it('preventive, fail closed: no initialize answer → nothing is sent at all', async () => {
+    const logFile = path.join(tmp, 'noinit.log');
+    process.env.FAKE_LOG = logFile;
+    process.env.FAKE_NO_INIT = '1';
+    try {
+      const { ClaudeCliSession } = await import('../src/main/providers/claude-cli');
+      const s = new ClaudeCliSession({ exe: fakeClaude(), workDir: path.join(tmp, 'w4'), mcp, systemPrompt: 'S', route: 'api-key', apiKey: 'sk-ant-test', configDir: path.join(tmp, 'w4-cfg'), version: '1', initTimeoutMs: 400 }, 'm');
+      await expect(s.start()).rejects.toThrow(/didn’t send anything/);
+      expect(s.dead).toBe(true);
+      expect(readLog(logFile).some((l) => l.userMessage)).toBe(false);
+    } finally {
+      delete process.env.FAKE_NO_INIT;
+    }
+  }, 30_000);
+  it('accountAllowed: only the route’s own credential; unknown fails closed', () => {
     expect(accountAllowed('api-key', { apiKeySource: 'ANTHROPIC_API_KEY', tokenSource: 'none', apiProvider: 'firstParty' })).toBe(true);
     expect(accountAllowed('api-key', { apiKeySource: 'none', tokenSource: 'claude.ai' })).toBe(false);
     expect(accountAllowed('api-key', { tokenSource: 'CLAUDE_CODE_OAUTH_TOKEN' })).toBe(false);
     expect(accountAllowed('api-key', { apiKeySource: 'ANTHROPIC_API_KEY', apiProvider: 'gateway' })).toBe(false);
-    expect(accountAllowed('api-key', undefined)).toBe(true); // unknown → the init backstop decides
+    expect(accountAllowed('api-key', { tokenSource: 'none', apiProvider: 'firstParty' })).toBe(false); // no key source reported
+    expect(accountAllowed('api-key', undefined)).toBe(false); // no answer → no
     expect(accountAllowed('bedrock', { apiProvider: 'firstParty' })).toBe(false);
+    expect(accountAllowed('bedrock', { apiProvider: 'bedrock', tokenSource: 'none' })).toBe(true);
+    expect(accountAllowed('claude-code', undefined)).toBe(true); // the user's own login
   });
   it('subscription mode never receives Cadabra’s API key (status and session use the same env)', () => {
     const env = claudeCodeEnv({ ...DIRTY });
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
   });
+  it('changing the saved key replaces a warm process (never reused with the old key)', async () => {
+    const logFile = path.join(tmp, 'swap.log');
+    process.env.FAKE_LOG = logFile;
+    let key = 'sk-ant-one';
+    const p = apiProvider('w5', undefined, { apiKey: () => key });
+    try {
+      await p.prewarm('m');
+      key = 'sk-ant-two';
+      await collect(p);
+      const keys = readLog(logFile).filter((l) => l.argv).map((l) => l.apiKey);
+      expect(keys).toEqual(['sk-ant-one', 'sk-ant-two']);
+    } finally {
+      p.reset();
+    }
+  }, 30_000);
 });
 
 import { classifyAction, DEFAULT_SAFETY, isShellTarget } from '../src/shared/safety';
@@ -170,7 +231,7 @@ describe('Export diagnostics: redaction', () => {
     expect(t).not.toMatch(/@example\.com|sk-ant-|AIza|abcdefghijklmnopqrstuv|0123456789abcdef0123/);
     if (os.userInfo().username.length >= 3) expect(t).not.toContain(os.userInfo().username);
     expect(redact(os.homedir())).not.toContain(path.basename(os.homedir()));
-    const bundle = diagnosticsText({ version: '0.9.0', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
+    const bundle = diagnosticsText({ version: '0.9.1', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
     expect(bundle).not.toContain('Alex');
     expect(bundle).toContain('Signed in to ChatGPT (Plus)');
   });

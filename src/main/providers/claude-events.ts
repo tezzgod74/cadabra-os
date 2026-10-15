@@ -1,5 +1,5 @@
-// Pure mapping from Claude Agent SDK messages to Cadabra ProviderEvents.
-// Kept free of SDK runtime imports so it can be unit-tested with fixtures.
+// Pure mapping from Claude Code stream-json messages to Cadabra ProviderEvents.
+// Kept free of process handling so it can be unit-tested with fixtures.
 
 import type { ProviderEvent } from '../../shared/types';
 import { shortToolName } from './types';

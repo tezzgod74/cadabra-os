@@ -318,25 +318,44 @@ async function show(state: string, opts: { reducedMotion?: boolean } = {}) {
       await sleep(60);
       break;
     case 'claude-install-consent':
+    case 'claude-install-progress':
+    case 'claude-install-manual':
+    case 'claude-connect':
     case 'claude-signed-in':
+    case 'claude-test-ok':
       summon(true);
       await sleep(300);
       toPanel({ type: '__settings' });
       await sleep(400);
       toPanel({ type: '__account-tab', id: 'claude' });
       await sleep(400);
-      if (state === 'claude-install-consent') {
-        toPanel({ type: '__click', selector: '.acct-install .inst-go' });
+      if (state === 'claude-install-manual') {
+        toPanel({ type: '__click', selector: '.cl-manual summary' });
+        await sleep(150);
+        toPanel({ type: '__scroll', selector: '.cl-howto' });
         await sleep(200);
       } else {
-        toPanel({ type: '__click', selector: '.acct-install .inst-go' });
-        await sleep(100);
-        toPanel({ type: '__click', selector: '.acct-install .inst-run' });
-        await sleep(300);
-        toPanel({ type: '__click', selector: '.acct-opt[data-opt="claude-code"] .acct-go' });
-        await sleep(400);
-        toPanel({ type: '__account-status', provider: 'claude', text: 'Signed in. Using your Claude subscription through Claude Code.' });
-        await sleep(200);
+        toPanel({ type: '__click', selector: '.cl-install' });
+        await sleep(150);
+        if (state !== 'claude-install-consent') {
+          toPanel({ type: '__click', selector: '.cl-run' });
+          // The demo installer takes ~1.5 s, so the progress state can be captured.
+          await sleep(state === 'claude-install-progress' ? 250 : 1900);
+        }
+        if (state === 'claude-connect') {
+          toPanel({ type: '__scroll', selector: '.cl-step.current' });
+          await sleep(200);
+        }
+        if (state === 'claude-signed-in' || state === 'claude-test-ok') {
+          toPanel({ type: '__click', selector: '.cl-choice[data-opt="claude-code"] .acct-go' });
+          await sleep(500);
+          if (state === 'claude-test-ok') {
+            toPanel({ type: '__click', selector: '.cl-setup .acct-test' });
+            await sleep(400);
+            toPanel({ type: '__scroll', selector: '.cl-setup .acct-progress' });
+          } else toPanel({ type: '__scroll', selector: '.cl-step.current' });
+          await sleep(200);
+        }
       }
       freezeAll(0);
       await sleep(60);
@@ -430,7 +449,7 @@ async function show(state: string, opts: { reducedMotion?: boolean } = {}) {
 }
 
 // Keep in sync with DEMO_STATES in src/main/demo-stage.ts.
-const DEMO_STATE_NAMES = ['summon-ripple', 'window-scan', 'panel-idle', 'panel-thinking', 'panel-streaming', 'panel-answer', 'highlight-rings', 'ghost-moving', 'ghost-click', 'confirm', 'model-picker', 'voice-listening', 'settings', 'dismiss', 'app-choices', 'app-launch', 'shortcut-recorder', 'onboarding-welcome', 'onboarding-name', 'onboarding-backend', 'onboarding-voice', 'onboarding-done', 'settings-accounts', 'sign-in-gemini', 'setup-card', 'acting-hud', 'onboarding-claude', 'claude-install-consent', 'claude-signed-in', 'settings-voice', 'onboarding-assistant', 'voice-status-ok', 'voice-status-reconnecting', 'voice-status-blocked', 'voice-ptt-not-working', 'settings-web', 'voice-status-headset', 'settings-email', 'settings-greetings'];
+const DEMO_STATE_NAMES = ['summon-ripple', 'window-scan', 'panel-idle', 'panel-thinking', 'panel-streaming', 'panel-answer', 'highlight-rings', 'ghost-moving', 'ghost-click', 'confirm', 'model-picker', 'voice-listening', 'settings', 'dismiss', 'app-choices', 'app-launch', 'shortcut-recorder', 'onboarding-welcome', 'onboarding-name', 'onboarding-backend', 'onboarding-voice', 'onboarding-done', 'settings-accounts', 'sign-in-gemini', 'setup-card', 'acting-hud', 'onboarding-claude', 'claude-install-consent', 'claude-signed-in', 'settings-voice', 'onboarding-assistant', 'voice-status-ok', 'voice-status-reconnecting', 'voice-status-blocked', 'voice-ptt-not-working', 'settings-web', 'voice-status-headset', 'settings-email', 'settings-greetings', 'claude-install-progress', 'claude-install-manual', 'claude-connect', 'claude-test-ok'];
 (window as any).demo = { show, states: DEMO_STATE_NAMES };
 (window as any).demoReady = Promise.resolve();
 

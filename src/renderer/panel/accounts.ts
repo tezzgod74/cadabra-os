@@ -41,7 +41,7 @@ export const BACKEND_BLURB: Record<string, string> = {
 };
 
 export const ACCOUNT_NOTES: Record<string, string> = {
-  claude: 'Two ways to use Claude: your Claude subscription through the official Claude Code CLI (no extra cost; Anthropic’s terms may restrict third-party use, at your own risk), or an API key billed per use.',
+  claude: 'Two ways to use Claude, both through Anthropic’s Claude Code app: your Claude subscription (no extra cost; Anthropic’s terms may restrict third-party use, at your own risk), or an API key billed per use.',
   copilot: 'Sign in by running <code>copilot</code> in a terminal and typing <code>/login</code>.',
 };
 
@@ -53,6 +53,9 @@ export function statusChip(v: Pick<AccountView, 'auth'>): string {
 
 /** Render the account card for one backend into `el`. Calls `onChange` after a successful connect. */
 export async function renderAccount(el: HTMLElement, api: AccountApi, provider: string, onChange?: (v: AccountView) => void): Promise<void> {
+  /** Claude's guided setup: where the one-click install is (round 13). */
+  let install: { state: 'idle' | 'consent' | 'running' | 'failed'; error?: string } = { state: 'idle' };
+
   el.innerHTML = `<div class="acct loading"><span class="status-orb"></span> Checking ${esc(provider)}…</div>`;
   const view = await api.accountOptions(provider);
   if (!view) {
@@ -62,6 +65,10 @@ export async function renderAccount(el: HTMLElement, api: AccountApi, provider: 
   draw(view);
 
   function draw(v: AccountView, progress = '') {
+    if (v.id === 'claude') {
+      drawClaude(v, progress);
+      return;
+    }
     const note = ACCOUNT_NOTES[v.id];
     el.innerHTML = `
       <div class="acct" data-provider="${esc(v.id)}">
@@ -155,6 +162,164 @@ export async function renderAccount(el: HTMLElement, api: AccountApi, provider: 
       setProgress(r?.ok ? `Works! It answered: “${r.text || 'Ready'}”` : `Test failed: ${r?.error ?? 'no answer'}`, !r?.ok);
     });
     el.querySelector<HTMLButtonElement>('.acct-out')?.addEventListener('click', async () => {
+      const next = await api.signOut(v.id);
+      if (next) draw(next, 'Signed out.');
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Claude: a friendly three-step setup for people who have never heard of
+  // Claude Code. 1. get the Claude Code app (one click, or by hand), 2. connect
+  // (sign in with a Claude plan, or paste an API key), 3. test. No jargon.
+  function drawClaude(v: AccountView, progress = '') {
+    const installed = v.install?.installed !== false;
+    const connected = installed && v.auth.ok;
+    const sub = v.options.find((o) => o.id === 'claude-code');
+    const key = v.options.find((o) => o.id === 'api-key');
+    const more = v.options.filter((o) => o.id !== 'claude-code' && o.id !== 'api-key');
+    const i = v.install;
+    const stepCls = (n: number) => {
+      const cur = !installed ? 1 : !connected ? 2 : 3;
+      return n < cur ? 'done' : n === cur ? 'current' : 'later';
+    };
+    const step1 = installed
+      ? `<p class="cl-ok">Claude Code is installed on this PC.</p>`
+      : `<p class="cl-what">Claude Code is Anthropic’s free app that lets Cadabra talk to Claude. It isn’t part of Cadabra, so it’s installed once, separately. It takes about a minute.</p>
+        ${
+          i?.blocker
+            ? `<p class="acct-err">${esc(i.blocker)}</p>`
+            : install.state === 'consent'
+              ? `<div class="cl-consent" role="alertdialog" aria-label="Install Claude Code?">
+                  <p>Cadabra will run Anthropic’s official installer for your Windows account. You don’t need to be an administrator. This is exactly what will run:</p>
+                  <pre class="c-mono">${esc(i?.command ?? '')}</pre>
+                  <div class="ob-nav-r"><button type="button" class="btn ghost cl-cancel">Cancel</button><button type="button" class="btn primary cl-run">Install</button></div>
+                </div>`
+              : install.state === 'running'
+                ? `<div class="ob-progress cl-running"><div class="bar indeterminate"><span></span></div><small>Installing Claude Code… this usually takes about a minute.</small></div>`
+                : `${install.state === 'failed' ? `<p class="acct-err" role="alert">${esc(install.error ?? 'The install didn’t finish.')}</p>` : ''}
+                   <button type="button" class="btn primary cl-install">${install.state === 'failed' ? 'Try again' : 'Install Claude Code'}</button>`
+        }
+        <details class="inst-manual cl-manual"${install.state === 'failed' ? ' open' : ''}><summary>Install it yourself instead</summary>
+          <ol class="cl-howto">
+            <li>Click <b>Start</b>, type <b>PowerShell</b> and open <b>Windows PowerShell</b>.</li>
+            <li>Copy this line, paste it into that window and press <b>Enter</b>:
+              <div class="inst-line"><code>${esc(i?.command ?? '')}</code><button type="button" class="btn ghost inst-copy" data-cmd="${esc(i?.command ?? '')}">Copy</button></div></li>
+            <li>When it says Claude Code is installed, come back here and press <b>Check again</b>.</li>
+          </ol>
+          <div class="inst-line"><button type="button" class="btn ghost cl-recheck">Check again</button>${i?.docsUrl ? `<a class="inst-docs" href="${esc(i.docsUrl)}">Anthropic’s install page</a>` : ''}</div>
+          <div class="inst-line"><span>Already installed somewhere else?</span><button type="button" class="btn ghost inst-browse">Find it on my PC…</button></div>
+        </details>`;
+    const optRow = (o: SignInOptionView | undefined, body: string) =>
+      o ? `<div class="acct-opt cl-choice${v.active === o.id ? ' active' : ''}" data-opt="${esc(o.id)}"><div class="acct-opt-main">${body}</div></div>` : '';
+    const step2 = !installed
+      ? `<p class="cl-later">Available after step 1.</p>`
+      : `${v.error ? `<p class="acct-err" role="alert">${esc(v.error)}</p>` : !v.auth.ok && v.auth.howTo ? `<p class="acct-how">${esc(v.auth.howTo)}</p>` : ''}
+        ${optRow(
+          sub,
+          `<span class="acct-opt-label">Use my Claude subscription</span>
+           <small>If you pay for Claude (Pro or Max), sign in with that account. No extra cost. Anthropic’s terms may restrict using a subscription through other apps, so this is at your own risk.</small>
+           <button type="button" class="btn primary acct-go">${v.active === 'claude-code' && v.auth.ok ? 'Sign in again' : 'Sign in'}</button>`,
+        )}
+        ${optRow(
+          key,
+          `<span class="acct-opt-label">Use an Anthropic API key</span>
+           <small>You pay Anthropic for what you use, separately from any Claude subscription. Create a key on Anthropic’s website, then paste it here. It’s stored encrypted on this PC.</small>
+           <a class="inst-docs cl-keylink" href="https://console.anthropic.com/settings/keys">Get a key at console.anthropic.com</a>
+           <input type="password" class="acct-key" placeholder="Paste your API key (sk-ant-…)" aria-label="Your Anthropic API key" />
+           <button type="button" class="btn ghost acct-go">Save key</button>`,
+        )}
+        ${
+          more.length
+            ? `<details class="inst-manual"><summary>Other ways (Amazon Bedrock, Google Vertex AI)</summary>${more
+                .map((o) => optRow(o, `<span class="acct-opt-label">${esc(o.label)}</span>${o.note ? `<small>${esc(o.note)}</small>` : ''}<button type="button" class="btn ghost acct-go">${v.active === o.id ? 'Reconnect' : 'Connect'}</button>`))
+                .join('')}</details>`
+            : ''
+        }`;
+    const step3 = connected
+      ? `<p class="cl-what">Send Claude a tiny test message to make sure everything works.</p>
+         <div class="acct-actions"><button type="button" class="btn primary acct-test">Test</button>${v.canSignOut ? '<button type="button" class="btn ghost acct-out">Sign out</button>' : ''}</div>`
+      : `<p class="cl-later">Available after step 2.</p>`;
+    el.innerHTML = `
+      <div class="acct cl-setup" data-provider="claude">
+        <div class="acct-head"><b>${esc(v.label)}</b>${statusChip(v)}</div>
+        <ol class="cl-steps">
+          <li class="cl-step ${stepCls(1)}"><h4><span class="cl-num">1</span>Get the Claude Code app</h4>${step1}</li>
+          <li class="cl-step ${stepCls(2)}"><h4><span class="cl-num">2</span>Connect your Claude account</h4>${step2}</li>
+          <li class="cl-step ${stepCls(3)}"><h4><span class="cl-num">3</span>Test it</h4>${step3}</li>
+        </ol>
+        <div class="acct-progress" aria-live="polite">${esc(progress)}</div>
+      </div>`;
+    const q = <T extends Element>(sel: string) => el.querySelector<T>(sel);
+    q<HTMLButtonElement>('.cl-install')?.addEventListener('click', () => {
+      install = { state: 'consent' };
+      drawClaude(v);
+    });
+    q<HTMLButtonElement>('.cl-cancel')?.addEventListener('click', () => {
+      install = { state: 'idle' };
+      drawClaude(v);
+    });
+    q<HTMLButtonElement>('.cl-run')?.addEventListener('click', async () => {
+      install = { state: 'running' };
+      drawClaude(v);
+      const r = await api.installCli(v.id);
+      if (r?.ok && r.view) {
+        install = { state: 'idle' };
+        draw(r.view, r.view.install?.installed === false ? '' : 'Claude Code is installed. Now connect your account.');
+        return;
+      }
+      install = { state: 'failed', error: r?.error ? `The install didn’t finish: ${r.error}` : 'The install didn’t finish.' };
+      drawClaude(r?.view ?? v);
+    });
+    q<HTMLButtonElement>('.cl-recheck')?.addEventListener('click', async () => {
+      setProgress('Checking…');
+      const next = await api.accountOptions(v.id);
+      if (next) draw(next, next.install?.installed === false ? 'Claude Code isn’t installed yet.' : 'Found it.');
+    });
+    el.querySelectorAll<HTMLButtonElement>('.inst-copy').forEach((b) =>
+      b.addEventListener('click', () => {
+        void navigator.clipboard?.writeText(b.dataset.cmd ?? '');
+        b.textContent = 'Copied';
+      }),
+    );
+    q<HTMLButtonElement>('.inst-browse')?.addEventListener('click', async () => {
+      const next = await api.browseCli?.(v.id);
+      if (next) draw(next, next.install?.installed ? 'Found it.' : '');
+    });
+    el.querySelectorAll<HTMLAnchorElement>('a.inst-docs').forEach((a) =>
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        api.openExternal(a.href);
+      }),
+    );
+    el.querySelectorAll<HTMLElement>('.cl-choice').forEach((row) => {
+      const go = row.querySelector<HTMLButtonElement>('.acct-go')!;
+      const keyIn = row.querySelector<HTMLInputElement>('.acct-key');
+      go.onclick = async () => {
+        const opt = row.dataset.opt!;
+        if (keyIn && !keyIn.value.trim()) {
+          keyIn.focus();
+          setProgress('Paste your API key first.', true);
+          return;
+        }
+        el.querySelectorAll<HTMLButtonElement>('button').forEach((b) => (b.disabled = true));
+        setProgress(keyIn ? 'Saving your key…' : opt === 'claude-code' ? 'Opening Claude Code’s sign-in… finish it in the window that opens.' : 'Connecting…');
+        const next = await api.signIn(v.id, opt, keyIn ? keyIn.value.trim() : null);
+        if (keyIn) keyIn.value = '';
+        if (next) {
+          draw(next, next.auth.ok ? 'Connected. Last step: press Test.' : '');
+          if (next.auth.ok) onChange?.(next);
+        }
+      };
+      keyIn?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') go.click();
+      });
+    });
+    q<HTMLButtonElement>('.acct-test')?.addEventListener('click', async () => {
+      setProgress('Sending Claude a tiny test message…');
+      const r = await api.testProvider(v.id);
+      setProgress(r?.ok ? `It works! Claude answered: “${r.text || 'Ready'}”` : `That didn’t work: ${r?.error ?? 'no answer'}`, !r?.ok);
+    });
+    q<HTMLButtonElement>('.acct-out')?.addEventListener('click', async () => {
       const next = await api.signOut(v.id);
       if (next) draw(next, 'Signed out.');
     });

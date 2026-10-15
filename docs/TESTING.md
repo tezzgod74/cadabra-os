@@ -38,9 +38,22 @@ Anything that needs your AI sends a few short requests through the account you c
 
 ### 2. Onboarding
 
-- [ ] Try the shortcut, enter a name, pick and connect an AI, then press **Test connection** ("Ready.").
+- [ ] Try the shortcut, enter a name, pick and connect an AI, then press **Test** ("Ready."). For Claude, see 2a.
 - [ ] Turn on voice and a natural voice; the downloads finish with progress bars.
 - [ ] No email addresses are shown anywhere, and each sign-in choice has an honest note.
+
+### 2a. Setting up Claude (fresh PC)
+
+Try this on a PC (or Windows account) without Claude Code.
+
+- [ ] Pick **Claude**. The card shows three steps: *Get the Claude Code app*, *Connect your Claude account*, *Test it*. The words are plain: no "CLI", "PATH" or "binary".
+- [ ] **Install Claude Code** shows exactly what will run and waits for **Install**. **Cancel** goes back without running anything.
+- [ ] After **Install**, a progress bar runs, and within a couple of minutes step 1 says *Claude Code is installed on this PC*.
+- [ ] Unplug the network and try again: the error says the download didn't work, in plain words, and **Install it yourself instead** opens with numbered steps, a **Copy** button and a link to Anthropic's install page. Follow them, then **Check again** finds it.
+- [ ] **Subscription:** **Sign in** opens Claude Code's own sign-in window; after you finish, the chip says *Connected*.
+- [ ] **API key:** the link opens console.anthropic.com; paste a key and **Save key**; the chip says *Connected*. A wrong or empty key gives a clear message and nothing is sent.
+- [ ] **Test** says *It works! Claude answered: "Ready."*
+- [ ] Switching between subscription and API key and pressing **Test** again works each time.
 
 ### 3. Summon and type immediately
 

@@ -2193,7 +2193,7 @@ export class CadabraApp {
     ipcMain.handle('account:browse-cli', async (e, id: ProviderId) => {
       if (!fromPanel(e) || !['claude', 'codex', 'gemini'].includes(id)) return null;
       const r = await dialog.showOpenDialog(this.panel!, {
-        title: `Choose the ${id === 'claude' ? 'Claude Code' : id === 'codex' ? 'Codex' : 'Gemini'} executable`,
+        title: id === 'claude' ? 'Find the Claude Code app (claude.exe)' : `Choose the ${id === 'codex' ? 'Codex' : 'Gemini'} executable`,
         properties: ['openFile'],
         filters: [{ name: 'Programs', extensions: ['exe', 'cmd'] }],
       });

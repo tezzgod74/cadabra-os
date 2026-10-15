@@ -6,7 +6,7 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
-> **Status: 0.9.0, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
+> **Status: 0.9.1, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
 
 ## Features
 
@@ -36,7 +36,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 - Windows 11 (x64).
 - At least one AI account, or the offline Demo mode to look around:
-  - **Claude:** a Claude subscription with [Claude Code](https://claude.com/claude-code) installed, an Anthropic API key, or Amazon Bedrock / Google Vertex AI;
+  - **Claude:** Anthropic's free [Claude Code](https://claude.com/claude-code) app (Cadabra can install it for you), plus either a Claude subscription or an Anthropic API key (Amazon Bedrock and Google Vertex AI also work). See [Setting up Claude](#setting-up-claude);
   - **OpenAI:** the [Codex CLI](https://github.com/openai/codex) (`npm i -g @openai/codex`) with a ChatGPT sign-in or an API key;
   - **Google:** the [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`npm i -g @google/gemini-cli`) with a Google sign-in or a Gemini API key;
   - **GitHub Copilot:** the Copilot CLI with your Copilot plan.
@@ -44,7 +44,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 ## Install
 
-1. Download `CadabraOS-Setup-0.9.0.exe` from the releases page, or [build it yourself](#build-from-source).
+1. Download `CadabraOS-Setup-0.9.1.exe` from the releases page, or [build it yourself](#build-from-source).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen warns: choose **More info → Run anyway**. It installs per user, with no admin prompt.
 3. A short setup opens in the panel: try the shortcut, choose what to be called, connect your AI (with a live test), and optionally turn on voice. You can reopen it from the tray (**Set up Cadabra…**).
 
@@ -58,10 +58,24 @@ You need Node.js 24 (see `.nvmrc`), Rust stable (MSVC) and the Visual Studio C++
 npm ci
 npm run build:native   # the Rust helper
 npm start              # build the JS and run the app
-npm run dist           # → dist/CadabraOS-Setup-0.9.0.exe (NSIS, per-user)
+npm run dist           # → dist/CadabraOS-Setup-0.9.1.exe (NSIS, per-user)
 ```
 
 Handy dev modes: `npm run demo` (visual preview stage with every state), `npm run demo:live` (real windows, offline backend, no hooks) and `npm run screenshots`. [CONTRIBUTING.md](CONTRIBUTING.md) has the full command list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how it fits together.
+
+## Setting up Claude
+
+Cadabra talks to Claude through **Claude Code**, Anthropic's free app. Cadabra doesn't include it; you install it once and Cadabra uses it in the background. The setup screen (in onboarding, or **Settings → AI accounts → Claude**) walks you through three steps:
+
+1. **Get the Claude Code app.** Press **Install Claude Code**. Cadabra shows you exactly what it will run (Anthropic's official installer), and installs it for your Windows account when you agree. No administrator rights are needed, and it takes about a minute. If that doesn't work on your PC, open **Install it yourself instead**: it explains how to paste one line into Windows PowerShell, with a **Copy** button and a link to Anthropic's install page. Then press **Check again**.
+2. **Connect your Claude account.** Pick one:
+   - **Use my Claude subscription** if you pay for Claude (Pro or Max). Press **Sign in** and finish the sign-in in the window Claude Code opens. There's no extra cost, but Anthropic's terms may restrict using a subscription through other apps, so this is at your own risk.
+   - **Use an Anthropic API key** if you'd rather pay per use. Create a key at [console.anthropic.com](https://console.anthropic.com/settings/keys), paste it in and press **Save key**. Anthropic bills you for what you use, separately from any subscription. The key is stored encrypted on your PC and is only given to Claude Code, never to anything else.
+3. **Test it.** Press **Test**. Cadabra sends Claude a tiny message and shows the answer ("It works!").
+
+Already have Claude Code installed somewhere unusual? Use **Find it on my PC…** under "Install it yourself instead".
+
+![Claude setup: install, connect, test](docs/screenshots/42-claude-connect.png)
 
 ## Providers and accounts
 
@@ -69,7 +83,7 @@ Connect accounts in onboarding or **Settings → AI accounts**. Each card shows 
 
 | Provider | Sign-in options |
 |---|---|
-| Claude | **Use my Claude subscription (via Claude Code)**: your own signed-in, unmodified `claude` CLI. Or an **Anthropic API key** (stored encrypted), **Amazon Bedrock** or **Google Vertex AI**. |
+| Claude | Always through your own Claude Code app: **Use my Claude subscription** (your Claude Code sign-in), an **Anthropic API key** (stored encrypted, given only to Claude Code), **Amazon Bedrock** or **Google Vertex AI**. |
 | OpenAI | **Sign in with ChatGPT (via Codex)**, using Codex's own login flow, or an **OpenAI API key**. |
 | Gemini | **Sign in with Google (via Gemini CLI)**, using the CLI's own login, a **Gemini API key**, or **Vertex AI**. |
 | GitHub Copilot | Your own Copilot CLI sign-in (`copilot` → `/login`) or `COPILOT_GITHUB_TOKEN`. |
@@ -79,7 +93,7 @@ Every backend gets **only Cadabra's tools**: built-in shell, file and other tool
 
 **Terms: please read.** Cadabra only signs in through each vendor's own, unmodified CLI and login page. It never implements vendor OAuth itself, never reads or copies CLI credential files and never spoofs client identity. Even so, vendors' terms differ and change:
 
-- **Anthropic:** using your Claude subscription through Claude Code runs on your plan's limits. **Anthropic's terms may restrict the use of subscriptions by third-party apps, so use this option at your own risk.** An Anthropic API key (billed per use) is clearly permitted.
+- **Anthropic:** Claude Code is Anthropic's software under Anthropic's terms; Cadabra doesn't bundle or redistribute it. Using your Claude subscription through Claude Code runs on your plan's limits. **Anthropic's terms may restrict the use of subscriptions by third-party apps, so use this option at your own risk.** An Anthropic API key (billed per use) is clearly permitted.
 - **OpenAI:** signing in with ChatGPT through the Codex CLI uses your plan's Codex limits under OpenAI's terms. An API key is billed per use.
 - **Google:** the Gemini CLI's own Google sign-in falls under Google's terms for the Gemini CLI. Google recommends an API key for third-party tools, which Cadabra also offers.
 - **GitHub:** Copilot requests count against your Copilot plan.

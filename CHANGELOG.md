@@ -4,6 +4,12 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.1 — Claude through your own Claude Code
+
+- **No Anthropic SDK in the installer any more.** Both Claude modes (your subscription, or an API key; also Bedrock and Vertex) now run through your own, separately installed Claude Code app. The proprietary `@anthropic-ai/claude-agent-sdk` package was removed.
+- **API-key mode keeps every safeguard:** Claude Code runs in `--bare` mode with only Cadabra's tools, a private empty settings folder, OAuth variables removed and the key given only to that process. Before anything is sent, Claude Code must report that it is using your API key, or the request stops; each turn is checked again.
+- **Friendly Claude setup:** a three-step screen (get the Claude Code app, connect your account, test) with a one-click installer, plain-language errors, step-by-step manual instructions with copy buttons, and links to Anthropic's install and API-key pages.
+
 ## 0.9.0 — first public-ready preview
 
 The first version prepared for other people to download, build and contribute to.

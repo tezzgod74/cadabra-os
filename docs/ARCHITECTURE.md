@@ -103,8 +103,8 @@ Each backend gets only Cadabra's tools. Built-in shell, file and web tools are o
 
 | Provider | How it runs | Isolation |
 |---|---|---|
-| Claude (subscription) | The user's own installed, unmodified `claude` CLI in stream-JSON mode (`providers/claude-cli.ts`). | `--tools ""`, `--strict-mcp-config` with only Cadabra's MCP server, `--setting-sources ""`, `--permission-mode dontAsk`, no session persistence, `ANTHROPIC_API_KEY` removed from its environment. |
-| Claude (API key, Bedrock, Vertex) | Claude Agent SDK, one process per chat (`providers/claude.ts`). | `tools: []`, `allowedTools: mcp__cadabra__*`, private empty config folder, all OAuth variables scrubbed, refuses to run unless the runtime reports API-key auth. Per-chat budget cap. |
+| Claude (subscription) | The user's own, separately installed Claude Code app in stream-JSON mode (`providers/claude-cli.ts`), signed in with the user's own Claude account. | `--tools ""`, `--strict-mcp-config` with only Cadabra's MCP server, `--setting-sources ""`, `--permission-mode dontAsk`, no session persistence, turn and budget limits, `ANTHROPIC_API_KEY` removed from its environment. |
+| Claude (API key, Bedrock, Vertex) | The same Claude Code app and lockdown, plus `--bare` (Anthropic auth strictly from `ANTHROPIC_API_KEY`; OAuth and keychain never read). | The key is placed only in that child's environment, never on the command line; private empty `CLAUDE_CONFIG_DIR`; all OAuth variables scrubbed. Before anything is sent, Claude Code's own `initialize` answer must report the API key as the credential source, or the session stops (fail closed); each turn's `system/init` is checked again. |
 | OpenAI | `codex app-server` over JSON-RPC (`providers/codex.ts`). | Private `CODEX_HOME`, read-only sandbox, approval policy `never`, shell features off, file and command approvals declined. |
 | Gemini | `gemini --acp` (`providers/gemini.ts`). | Private empty workspace, built-in shell/file tools excluded, only Cadabra's MCP server; `fs/*` and `terminal/*` requests refused. |
 | GitHub Copilot | Copilot SDK (`providers/copilot.ts`). | `availableTools: ['custom:*']`; other permission requests rejected. |

@@ -152,11 +152,12 @@ export async function installCli(spec: CliInstallSpec, io: InstallIO, deps: Setu
 
 export function friendlyInstallError(output: string, code: number | null): string {
   const o = output.toLowerCase();
-  if (/eacces|eperm|permission denied/.test(o)) return 'npm could not write to its global folder (permission error). See the manual steps, or fix the npm prefix (npm config get prefix).';
-  if (/enotfound|getaddrinfo|could not resolve|unable to connect|network/.test(o)) return 'The download failed (no internet connection or a proxy is blocking it).';
-  if (/execution.?policy|running scripts is disabled/.test(o)) return 'PowerShell blocked the install script (execution policy). Use the manual steps below.';
-  if (/403/.test(o)) return 'The download was refused (HTTP 403). Your region or network may block it; see the docs.';
-  return `The installer exited with code ${code ?? 'unknown'}. See the output above, or use the manual steps.`;
+  // Plain language: these are shown to people who may never have used a terminal.
+  if (/eacces|eperm|permission denied/.test(o)) return 'Windows didn’t let the installer save its files. Try the “Install it yourself” steps instead.';
+  if (/enotfound|getaddrinfo|could not resolve|unable to connect|network/.test(o)) return 'The download didn’t work (no internet connection, or your network is blocking it). Check your connection and try again.';
+  if (/execution.?policy|running scripts is disabled/.test(o)) return 'Windows blocked the installer from running on this PC. Try the “Install it yourself” steps instead.';
+  if (/403/.test(o)) return 'The download was refused. Your network or region may block it; try the “Install it yourself” steps.';
+  return `The installer stopped with an error (code ${code ?? 'unknown'}). Try again, or use the “Install it yourself” steps.`;
 }
 
 /**

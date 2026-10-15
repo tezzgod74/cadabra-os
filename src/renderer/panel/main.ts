@@ -115,7 +115,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.0',
+    version: '0.9.1',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -151,6 +151,7 @@ function makeDemoApi(): Api {
     testProvider: async () => ({ ok: true, text: 'Ready.' }),
     installCli: async (id) => {
       postToStage('install', id);
+      if (id === 'claude') await new Promise((r) => setTimeout(r, 1500)); // lets the demo stage show progress
       return { ok: true, view: DEMO_ACCOUNTS[id] ? { ...DEMO_ACCOUNTS[id], install: { installed: true } } : undefined };
     },
     micStatus: async () => 'granted',
@@ -178,19 +179,19 @@ const DEMO_ACCOUNTS: Record<string, AccountView> = {
   claude: {
     id: 'claude',
     label: 'Claude',
-    auth: { ok: false, detail: 'Choose how to connect' },
+    auth: { ok: false, detail: 'Not set up yet' },
     canSignOut: true,
     options: [
-      { id: 'claude-code', label: 'Use my Claude subscription (via Claude Code)', note: 'No extra cost: uses your Pro/Max limits through the official Claude Code CLI on this PC. Anthropic’s terms may restrict use of subscriptions by third-party apps — use at your own risk.' },
-      { id: 'api-key', label: 'Use an Anthropic API key', needsKey: true, keyPlaceholder: 'sk-ant-…', note: 'Billed per use, separately from any Claude subscription (console.anthropic.com). Clearly permitted for apps like Cadabra. Runs on Claude Code (installed once), but only your key is used, never your subscription.' },
-      { id: 'bedrock', label: 'Use Amazon Bedrock', note: 'Uses your AWS credentials from the environment (AWS_REGION, AWS_PROFILE).' },
-      { id: 'vertex', label: 'Use Google Vertex AI', note: 'Uses ANTHROPIC_VERTEX_PROJECT_ID / CLOUD_ML_REGION and your gcloud login.' },
+      { id: 'claude-code', label: 'Use my Claude subscription (via Claude Code)', note: 'No extra cost: uses your Pro/Max limits through Anthropic’s Claude Code app on this PC. Anthropic’s terms may restrict use of subscriptions by third-party apps — use at your own risk.' },
+      { id: 'api-key', label: 'Use an Anthropic API key', needsKey: true, keyPlaceholder: 'sk-ant-…', note: 'Billed per use by Anthropic, separately from any Claude subscription (console.anthropic.com). Clearly permitted for apps like Cadabra. Runs in the Claude Code app, but only your key is used, never your subscription.' },
+      { id: 'bedrock', label: 'Use Amazon Bedrock', note: 'Runs in the Claude Code app with your AWS credentials from the environment (AWS_REGION, AWS_PROFILE).' },
+      { id: 'vertex', label: 'Use Google Vertex AI', note: 'Runs in the Claude Code app with ANTHROPIC_VERTEX_PROJECT_ID / CLOUD_ML_REGION and your gcloud login.' },
     ],
     install: {
       installed: false,
       name: 'Claude Code',
       command: 'irm https://claude.ai/install.ps1 | iex',
-      manual: ['irm https://claude.ai/install.ps1 | iex', 'winget install Anthropic.ClaudeCode', 'npm install -g @anthropic-ai/claude-code'],
+      manual: ['irm https://claude.ai/install.ps1 | iex'],
       docsUrl: 'https://code.claude.com/docs/en/setup',
       blocker: null,
     },
@@ -882,7 +883,7 @@ async function showSettings(focus?: 'shortcut') {
       <div class="s-group"><h4>AI accounts</h4>
         <div class="acct-tabs" role="tablist">${['claude', 'codex', 'gemini', 'copilot'].map((id) => `<button type="button" role="tab" class="acct-tab" data-id="${id}">${({ claude: 'Claude', codex: 'OpenAI', gemini: 'Gemini', copilot: 'Copilot' } as Record<string, string>)[id]}</button>`).join('')}</div>
         <div id="s-acct"></div>
-        <p class="s-note">Sign-ins run in each vendor’s own CLI and browser page; Cadabra never sees those passwords or tokens. Keys you paste are encrypted with Windows (DPAPI)${data.encryption ? '' : ' (unavailable on this PC: keys can’t be saved)'}.</p>
+        <p class="s-note">Sign-ins happen in each company’s own app or web page; Cadabra never sees those passwords or tokens. Keys you paste are encrypted with Windows (DPAPI)${data.encryption ? '' : ' (unavailable on this PC: keys can’t be saved)'}.</p>
       </div>
       <div class="s-group"><h4>Voice</h4>
         <div class="s-row"><div class="s-label">Voice: wake word “${nm}”<small>Listens locally; nothing leaves your PC until you say it. Then your request goes to your chosen AI (${({ claude: 'Anthropic', codex: 'OpenAI', gemini: 'Google', copilot: 'GitHub', demo: 'nowhere: demo is offline' } as Record<string, string>)[s.provider] ?? s.provider}).</small></div>${toggle(s.voice.enabled, 'voice')}</div>

@@ -43,6 +43,10 @@ export const DEMO_STATES = [
   'voice-status-headset',
   'settings-email',
   'settings-greetings',
+  'claude-install-progress',
+  'claude-install-manual',
+  'claude-connect',
+  'claude-test-ok',
 ] as const;
 
 /**

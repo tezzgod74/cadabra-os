@@ -1953,3 +1953,108 @@ kbd.cap {
   gap: 6px;
   margin-top: 6px;
 }
+
+/* ------------------------------------- Claude: guided three-step setup -- */
+.cl-steps {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.cl-step {
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.14);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.cl-step.current {
+  background: rgba(255, 210, 122, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 210, 122, 0.32);
+}
+.cl-step.later {
+  opacity: 0.6;
+}
+.cl-step h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 12.5px;
+}
+.cl-num {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 11px;
+  color: #1b1530;
+  background: var(--gold);
+}
+.cl-step.done .cl-num {
+  background: #5ee08e;
+}
+.cl-what,
+.cl-ok,
+.cl-later {
+  margin: 2px 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.cl-ok {
+  color: #c9f7d8;
+  margin-bottom: 0;
+}
+.cl-later {
+  margin-bottom: 0;
+}
+.cl-consent p {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.cl-howto {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  line-height: 1.45;
+}
+.cl-howto li {
+  margin-bottom: 6px;
+}
+.cl-choice {
+  display: block;
+}
+.cl-choice .btn {
+  margin-top: 8px;
+}
+.cl-keylink {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+}
+.bar.indeterminate span {
+  width: 35%;
+  animation: cl-slide 1.4s var(--ease-out) infinite;
+}
+@keyframes cl-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar.indeterminate span {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}
+.cl-step h4 {
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+}
