@@ -1,0 +1,89 @@
+# Third-party notices
+
+Cadabra OS is MIT-licensed (see [LICENSE](LICENSE)). It builds on the software and models listed below, each under its own licence. This file covers what the installer ships and what the app downloads on first use. Items marked **verify** still need someone to check them against the upstream source before a 1.0 release.
+
+Versions are the ones pinned in `package-lock.json` and `native/cadabra-helper/Cargo.lock` when this file was written.
+
+## Shipped in the installer
+
+### Runtime and libraries (npm)
+
+| Component | Version | Licence | Notes |
+|---|---|---|---|
+| [Electron](https://github.com/electron/electron) | 44.7.0 | MIT | Electron bundles Chromium, Node.js, V8 and FFmpeg, whose licences ship in the installer as `LICENSES.chromium.html` and `LICENSE.electron.txt`. |
+| [sherpa-onnx-node](https://github.com/k2-fsa/sherpa-onnx) and `sherpa-onnx-win-x64` | 1.13.8 | Apache-2.0 | Speech engine: wake word, VAD, speech-to-text and text-to-speech. The Windows binary includes [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT). **Verify** that the binary package carries all of its upstream notices. |
+| [tldts](https://github.com/remusao/tldts) and tldts-core | 7.4.15 / 7.4.18 | MIT | Domain parsing. Includes data from the [Public Suffix List](https://publicsuffix.org/) (MPL-2.0). |
+| [imapflow](https://github.com/postalsys/imapflow) | 2.4.2 | MIT | Gmail IMAP (app-password mode). |
+| [mailparser](https://github.com/nodemailer/mailparser) | 3.9.39 | MIT | Pulls in `@zone-eu/mailsplit` (MIT OR EUPL-1.1+, used under MIT) and `nodemailer` (MIT-0). |
+| [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) | 1.32.1 | MIT | Model Context Protocol server for Cadabra's tools. |
+| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) | 0.133.0 | MIT | |
+| [@anthropic-ai/claude-agent-sdk](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) | 0.3.296 | **Proprietary** | See [the section below](#anthropic-aiclaude-agent-sdk-proprietary). |
+| [@github/copilot-sdk](https://github.com/github/copilot-sdk) | 1.0.19 | MIT | The platform runtime packages (`@github/copilot-sdk-*`) are excluded from the installer. |
+| [zod](https://github.com/colinhacks/zod) | 4.6.5 | MIT | |
+| Other transitive npm dependencies | — | MIT (about 130 packages), ISC (8), BSD-2-Clause (`json-schema-typed`, `domelementtype`, `domhandler`, `domutils`, `entities`), BSD-3-Clause (`fast-uri`, `qs`, `deepmerge-ts`), Unlicense (`fast-sha256`) | Run `npm ls --omit=dev --all` to list them. Each package's licence file is inside `app.asar` under `node_modules/`. |
+
+`marked` (MIT) and the other dev dependencies (TypeScript, Vite, electron-vite, electron-builder, ESLint, Vitest) are only used to build or test the app and are not shipped.
+
+### @anthropic-ai/claude-agent-sdk (proprietary)
+
+- **Licence:** not open source. Its `LICENSE.md` reads: "© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance". It is governed by Anthropic's legal agreements, not by this project's MIT licence.
+- **How it ships:** the JavaScript package (version 0.3.296) is **bundled in the installer** inside `app.asar`. Its native runtime (`@anthropic-ai/claude-agent-sdk-*`) is excluded.
+- **Before a public installer:** redistribution must be **confirmed with Anthropic**, or the app must stop bundling it and load the SDK at run time from the user's own installation instead. Until then, treat installers built from this repository as not cleared for public distribution.
+- **Data collection:** the SDK's README says that when you use it, Anthropic collects feedback, including usage data (such as code acceptance or rejections), associated conversation data and user feedback submitted via `/bug`; see https://code.claude.com/docs/en/data-usage. This applies when the Claude backend runs through the SDK (API key, Bedrock or Vertex).
+- Cadabra's own source code doesn't include any of the SDK's code; it only imports the package.
+
+### Native helper (Rust crates)
+
+`cadabra-helper.exe` statically links these crates:
+
+| Crate | Licence |
+|---|---|
+| `windows`, `windows-core`, `windows-collections`, `windows-future`, `windows-implement`, `windows-interface`, `windows-link`, `windows-numerics`, `windows-result`, `windows-strings`, `windows-threading` (0.62.x family) | MIT OR Apache-2.0 |
+| `serde`, `serde_core`, `serde_derive`, `serde_json`, `itoa`, `proc-macro2`, `quote`, `syn` | MIT OR Apache-2.0 |
+| `unicode-ident` | (MIT OR Apache-2.0) AND Unicode-3.0 |
+| `base64`, `png`, `crc32fast`, `fdeflate`, `flate2`, `cfg-if`, `bitflags` | MIT OR Apache-2.0 |
+| `miniz_oxide` | MIT OR Zlib OR Apache-2.0 |
+| `adler2` | 0BSD OR MIT OR Apache-2.0 |
+| `memchr` | Unlicense OR MIT |
+| `simd-adler32`, `zmij` | MIT |
+| `zlib-rs` | Zlib |
+
+`proc-macro2`, `quote`, `syn`, `serde_derive`, `windows-implement` and `windows-interface` only run at build time. **Verify** the full list with `cargo tree` (or `cargo about`) before a release.
+
+### Voice models (in `resources/models/`)
+
+| Model | Licence | Source |
+|---|---|---|
+| Wake-word model: `sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01` (encoder, decoder, joiner, tokens), trained on GigaSpeech XL | Apache-2.0 (from the model's README, kept in `resources/models/kws/README.md`) | https://www.modelscope.cn/pkufool/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01 and the sherpa-onnx KWS model releases. **Verify** the licence terms of the GigaSpeech training data for model redistribution. |
+| `resources/models/kws/scores.json` (token scores taken from the wake-word model's SentencePiece vocabulary) and `cadabra-keywords.txt` | Same as the wake-word model (Apache-2.0) | Derived from the model above |
+| Silero VAD (`silero_vad.onnx`) | MIT | https://github.com/snakers4/silero-vad |
+
+### App assets
+
+The voice samples in `docs/voice-samples/*.wav` (repository only, not in the installer) are output of the Kokoro-82M v1.0 model (Apache-2.0), rendered by `scripts/voice-samples.ts`.
+
+The app and tray icons in `resources/icons/` and `build/` are generated by `scripts/make-icons.mjs` and are covered by this project's MIT licence. Screenshots in `docs/screenshots/` show a synthetic demo desktop; all names, mail and files in them are made up.
+
+## Downloaded on first use (not in the installer)
+
+The app downloads these from the sherpa-onnx GitHub releases when you turn the features on. It verifies each archive against a pinned SHA-256 (`src/main/voice/models.ts`).
+
+| Model | Licence | Notes |
+|---|---|---|
+| Speech-to-text: NVIDIA Parakeet TDT-CTC 110M (English), int8 export `sherpa-onnx-nemo-parakeet_tdt_ctc_110m-en-36000-int8` | CC-BY-4.0 (NVIDIA model card for `nvidia/parakeet-tdt_ctc-110m`) | Attribution: NVIDIA. **Verify** the licence of the sherpa-onnx int8 export. |
+| Text-to-speech: Kokoro-82M v1.0 (`kokoro-multi-lang-v1_0`: model, voices, tokens, lexicons) | Apache-2.0 (the `LICENSE` file in the archive) | https://huggingface.co/hexgrad/Kokoro-82M. The voices (`bf_emma`, `bm_george`, `af_heart`, `am_michael` and others) are part of the same release. **Verify** the licence for the voices and lexicon files separately. |
+| espeak-ng data (`espeak-ng-data/`, inside the Kokoro archive) | GPL-3.0-or-later | Used as phoneme data by sherpa-onnx at run time. It is downloaded by the user's app and **not distributed** in this repository or the installer. https://github.com/espeak-ng/espeak-ng. **Verify** whether the sherpa-onnx library links espeak-ng code (as opposed to only reading its data) and what that means for redistribution. |
+
+## Services and tools Cadabra talks to (not distributed)
+
+Cadabra drives tools you install and sign in to yourself. It does not bundle them, and their own terms apply:
+
+- Claude Code (`claude`), Anthropic API, Amazon Bedrock and Google Vertex AI (Anthropic, AWS and Google terms).
+- OpenAI Codex CLI (`codex`) and the OpenAI API, including the optional cloud voices (`gpt-4o-mini-tts`).
+- Google Gemini CLI (`gemini`) and the Gemini API.
+- GitHub Copilot CLI.
+- The Gmail API or Gmail IMAP, with the user's own Google credentials.
+- The WhatsApp Agent Platform (`api.whatsapp.com`), with the user's own agent key.
+- [Open-Meteo](https://open-meteo.com/) for weather (data under CC-BY-4.0; attribution: "Weather data by Open-Meteo.com").
+
+Product names are trademarks of their owners. Cadabra OS is not affiliated with or endorsed by Anthropic, OpenAI, Google, GitHub, Microsoft, Meta or NVIDIA.

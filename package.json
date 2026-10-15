@@ -1,0 +1,56 @@
+{
+  "name": "cadabra-os",
+  "version": "0.9.0",
+  "description": "Ctrl + right-click anywhere to summon an AI that can see and act on your screen.",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run build:native && electron-vite build",
+    "build:native": "node scripts/build-helper.mjs",
+    "build:js": "electron-vite build",
+    "start": "electron-vite build && node scripts/run-electron.mjs",
+    "demo": "electron-vite build && node scripts/run-electron.mjs --demo",
+    "demo:live": "electron-vite build && node scripts/run-electron.mjs --demo-live",
+    "screenshots": "electron-vite build && node scripts/run-electron.mjs --demo --screenshots",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "test:native": "cargo test --release --manifest-path native/cadabra-helper/Cargo.toml",
+    "smoke:helper": "node scripts/helper-smoke.mjs",
+    "dist": "npm run build:native && electron-vite build && electron-builder --win nsis --publish never",
+    "icons": "node scripts/make-icons.mjs",
+    "selftest": "electron-vite build && node scripts/run-electron.mjs --selftest",
+    "e2e:live": "electron-vite build && node scripts/e2e-live.mjs"
+  },
+  "author": "Cadabra OS contributors",
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.296",
+    "@anthropic-ai/sdk": "^0.133.0",
+    "@github/copilot-sdk": "^1.0.19",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "imapflow": "2.4.2",
+    "mailparser": "3.9.39",
+    "sherpa-onnx-node": "^1.13.8",
+    "tldts": "7.4.15",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.12.0",
+    "marked": "^18.1.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^7.3.7",
+    "vitest": "^5.0.3"
+  },
+  "productName": "Cadabra OS"
+}

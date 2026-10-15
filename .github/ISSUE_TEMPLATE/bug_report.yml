@@ -1,0 +1,74 @@
+name: Bug report
+description: Something in Cadabra OS doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Security problems** (Cadabra acting without a confirm card, leaking data, prompt injection) should be reported privately instead: see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Summon Cadabra over Notepad
+        2. Say "..."
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Cadabra OS version
+      description: Shown at the bottom of the tray menu.
+      placeholder: "0.9.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI backend
+      options:
+        - Claude (subscription via Claude Code)
+        - Claude (API key / Bedrock / Vertex)
+        - OpenAI (Codex)
+        - Gemini
+        - GitHub Copilot
+        - Demo
+        - Not relevant
+  - type: dropdown
+    id: input
+    attributes:
+      label: How did you ask?
+      options:
+        - Typed
+        - Voice (wake word)
+        - Voice (push-to-talk)
+        - WhatsApp
+        - Not relevant
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 24H2"
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Tray → **Export diagnostics…**, then attach the file here.
+        **Review it before posting.** It is redacted (no keys, tokens, email addresses, user or machine names, window titles), but text from other apps can still appear in the log. Remove anything you don't want to share.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reviewed the diagnostics file (if attached) and it contains nothing private.
+          required: true

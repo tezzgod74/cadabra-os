@@ -1,0 +1,118 @@
+{
+  "threads": 4,
+  "speed": 1.05,
+  "stats": [
+    {
+      "voice": "bm_george",
+      "line": "a",
+      "firstAudioMs": 1571,
+      "totalMs": 2454,
+      "audioSec": 5.98
+    },
+    {
+      "voice": "bm_george",
+      "line": "b",
+      "firstAudioMs": 1147,
+      "totalMs": 1147,
+      "audioSec": 5.44
+    },
+    {
+      "voice": "bf_emma",
+      "line": "a",
+      "firstAudioMs": 305,
+      "totalMs": 1094,
+      "audioSec": 4.82
+    },
+    {
+      "voice": "bf_emma",
+      "line": "b",
+      "firstAudioMs": 1039,
+      "totalMs": 1039,
+      "audioSec": 4.72
+    },
+    {
+      "voice": "am_michael",
+      "line": "a",
+      "firstAudioMs": 1498,
+      "totalMs": 2255,
+      "audioSec": 4.9
+    },
+    {
+      "voice": "am_michael",
+      "line": "b",
+      "firstAudioMs": 1134,
+      "totalMs": 1134,
+      "audioSec": 5.14
+    },
+    {
+      "voice": "af_heart",
+      "line": "a",
+      "firstAudioMs": 273,
+      "totalMs": 962,
+      "audioSec": 4.41
+    },
+    {
+      "voice": "af_heart",
+      "line": "b",
+      "firstAudioMs": 999,
+      "totalMs": 999,
+      "audioSec": 4.77
+    },
+    {
+      "voice": "bm_fable",
+      "line": "a",
+      "firstAudioMs": 311,
+      "totalMs": 1153,
+      "audioSec": 6.12
+    },
+    {
+      "voice": "bm_fable",
+      "line": "b",
+      "firstAudioMs": 1058,
+      "totalMs": 1058,
+      "audioSec": 5.45
+    },
+    {
+      "voice": "bf_isabella",
+      "line": "a",
+      "firstAudioMs": 335,
+      "totalMs": 1178,
+      "audioSec": 4.93
+    },
+    {
+      "voice": "bf_isabella",
+      "line": "b",
+      "firstAudioMs": 1093,
+      "totalMs": 1093,
+      "audioSec": 4.86
+    },
+    {
+      "voice": "af_bella",
+      "line": "a",
+      "firstAudioMs": 293,
+      "totalMs": 1037,
+      "audioSec": 4.28
+    },
+    {
+      "voice": "af_bella",
+      "line": "b",
+      "firstAudioMs": 1147,
+      "totalMs": 1147,
+      "audioSec": 5.04
+    },
+    {
+      "voice": "am_fenrir",
+      "line": "a",
+      "firstAudioMs": 272,
+      "totalMs": 955,
+      "audioSec": 4.19
+    },
+    {
+      "voice": "am_fenrir",
+      "line": "b",
+      "firstAudioMs": 982,
+      "totalMs": 982,
+      "audioSec": 5.01
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an idea or improvement for Cadabra OS.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you're trying to do and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: An example dialog helps a lot, for example "You: Cadabra, … / Cadabra: …".
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and privacy
+      description: Would this let Cadabra act in new places, send data somewhere new, or skip a confirm card? How should it stay safe?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered

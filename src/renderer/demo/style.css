@@ -1,0 +1,347 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0a1a;
+  font: 13px/1.45 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#desktop {
+  position: relative;
+  width: 1280px;
+  height: 800px;
+  overflow: hidden;
+}
+/* Windows 11-ish bloom wallpaper */
+.wall {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60% 70% at 72% 58%, rgba(108, 140, 255, 0.85), transparent 60%),
+    radial-gradient(45% 55% at 85% 35%, rgba(170, 120, 255, 0.7), transparent 60%),
+    radial-gradient(50% 60% at 60% 85%, rgba(60, 200, 255, 0.45), transparent 65%),
+    radial-gradient(80% 90% at 20% 10%, #1c2350, transparent 70%),
+    linear-gradient(160deg, #101634, #0a0d24 60%, #141a44);
+}
+.icons {
+  position: absolute;
+  right: 26px;
+  top: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.dicon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 11.5px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.dicon i {
+  width: 40px;
+  height: 34px;
+  border-radius: 6px;
+  background: linear-gradient(160deg, var(--c), color-mix(in srgb, var(--c) 60%, #000));
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+
+/* Mock mail app window */
+.win {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 760px;
+  height: 620px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f6f5f9;
+  color: #1d1b26;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.25),
+    0 28px 70px rgba(0, 0, 0, 0.45);
+}
+.titlebar {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 0 12px;
+  background: #ece9f3;
+  font-size: 12px;
+  color: #3a3650;
+}
+.app-ico {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: linear-gradient(160deg, #3c7bff, #2950c8);
+}
+.caps {
+  margin-left: auto;
+  display: flex;
+}
+.caps i {
+  width: 46px;
+  height: 34px;
+  display: block;
+  background:
+    linear-gradient(#55516a, #55516a) center/10px 1px no-repeat;
+}
+.caps i.x {
+  background:
+    linear-gradient(45deg, transparent 47%, #55516a 47%, #55516a 53%, transparent 53%) center/10px 10px no-repeat,
+    linear-gradient(-45deg, transparent 47%, #55516a 47%, #55516a 53%, transparent 53%) center/10px 10px no-repeat;
+}
+.mail-body {
+  display: grid;
+  grid-template-columns: 150px 250px 1fr;
+  height: calc(100% - 34px);
+}
+.side {
+  padding: 12px 10px;
+  background: #efedf5;
+}
+.compose {
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #3567e8;
+  color: #fff;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.fold {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #3a3650;
+}
+.fold.sel {
+  background: #dfdcf0;
+  font-weight: 600;
+}
+.fold b {
+  color: #3567e8;
+}
+.list {
+  border-right: 1px solid #e3e0ec;
+  overflow: hidden;
+  background: #fbfaff;
+}
+.row {
+  padding: 10px 14px;
+  border-bottom: 1px solid #ecebf3;
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+}
+.row b {
+  font-weight: 600;
+}
+.row span {
+  color: #2d2a3c;
+}
+.row em {
+  font-style: normal;
+  color: #8a86a0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row.unread {
+  box-shadow: inset 3px 0 0 #3567e8;
+}
+.row.sel {
+  background: #e8e6f6;
+}
+.read {
+  padding: 0 22px;
+  overflow: hidden;
+}
+.read .tools {
+  display: flex;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid #ecebf3;
+}
+.tb {
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: #efedf6;
+  font-size: 12px;
+}
+.read h2 {
+  margin: 16px 0 10px;
+  font-size: 19px;
+  font-weight: 600;
+}
+.from {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.from small {
+  display: block;
+  color: #8a86a0;
+}
+.av {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #d9c3ff;
+  color: #4b2a9a;
+  font-weight: 700;
+  font-size: 12px;
+}
+.read p {
+  color: #2d2a3c;
+}
+.read code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #fde8e4;
+  color: #b23a22;
+  font-size: 12px;
+}
+.attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 8px;
+  border: 1px solid #e3e0ec;
+  background: #fff;
+}
+.attach small {
+  display: block;
+  color: #8a86a0;
+}
+.pdf {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: #e5623f;
+  color: #fff;
+  font-weight: 700;
+  font-size: 10px;
+}
+.sig {
+  color: #6b6782 !important;
+}
+
+.taskbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(24, 24, 44, 0.78);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tb-center {
+  display: flex;
+  gap: 8px;
+}
+.tb-center i {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.tb-center i.start {
+  background: linear-gradient(135deg, #5fb3ff, #2c6dff);
+}
+.tb-center i.act {
+  box-shadow: inset 0 -2px 0 #7aa7ff;
+}
+.tb-right {
+  position: absolute;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-size: 12px;
+}
+.tray-spark {
+  width: 16px;
+  height: 16px;
+  background: radial-gradient(circle, #ffd27a 30%, transparent 32%);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  background: linear-gradient(135deg, #fff1c4, #e9a23b);
+}
+
+/* Cadabra layers */
+.overlay-frame {
+  position: absolute;
+  inset: 0;
+  width: 1280px;
+  height: 800px;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+  z-index: 30;
+  color-scheme: normal;
+}
+.panel-frame {
+  position: absolute;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  z-index: 20;
+  color-scheme: normal;
+  /* Stand-in for Windows acrylic: blur what's behind the window. */
+  backdrop-filter: blur(30px) saturate(1.6) brightness(0.9);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 30px 70px -10px rgba(0, 0, 0, 0.6),
+    0 10px 24px -8px rgba(30, 10, 80, 0.5);
+  /* not 0: fully transparent cross-origin iframes get render-throttled */
+  opacity: 0.01;
+}
+.panel-frame.show {
+  opacity: 1;
+  transition: opacity 170ms ease-out 40ms;
+}
+.panel-frame.hide {
+  opacity: 0.01;
+  transition: opacity 150ms ease-in;
+}
+
+.controls {
+  position: fixed;
+  left: 10px;
+  bottom: 56px;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 560px;
+}
+.controls button {
+  font: 11px 'Segoe UI', sans-serif;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+}
+.capture .controls {
+  display: none;
+}

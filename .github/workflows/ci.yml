@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: TypeScript (typecheck, lint, unit tests)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        # Integration tests skip themselves without their CADABRA_* variables.
+        run: npm test
+      - name: Build JS
+        run: npm run build:js
+
+  helper:
+    name: Rust helper (test, release build)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: native/cadabra-helper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/cadabra-helper
+      - name: Test
+        run: cargo test --release --locked
+      - name: Build (release, paths remapped)
+        working-directory: .
+        run: node scripts/build-helper.mjs --locked

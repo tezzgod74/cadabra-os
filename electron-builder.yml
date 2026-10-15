@@ -1,0 +1,49 @@
+appId: ai.cadabra.os
+productName: Cadabra OS
+copyright: Copyright © 2026 Cadabra OS contributors
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+  # Agent runtimes are NOT shipped (250 MB+ each, docs/research.md): Cadabra
+  # uses the user's installed Claude Code / Copilot / Codex CLIs instead.
+  - "!node_modules/@anthropic-ai/claude-agent-sdk-*/**"
+  - "!node_modules/@github/copilot-sdk-*/**"
+  - "!node_modules/@openai/codex-*/**"
+asar: true
+asarUnpack:
+  - "**/*.node"
+  # sherpa-onnx native addon + onnxruntime DLLs must be real files for the voice utilityProcess
+  - "**/node_modules/sherpa-onnx-*/**"
+extraResources:
+  - from: native/cadabra-helper/target/release/cadabra-helper.exe
+    to: bin/cadabra-helper.exe
+  - from: resources/icons
+    to: icons
+  # Wake word (KWS 3.3M int8) + Silero VAD, ~6.5 MB. The ~100 MB speech model downloads on first use.
+  - from: resources/models
+    to: models
+  # Licence texts ship with the app (resources/LICENSE, resources/THIRD_PARTY_NOTICES.md).
+  - from: LICENSE
+    to: LICENSE
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  # Signing: configure win.azureSignOptions (Azure Trusted Signing) for release builds.
+nsis:
+  oneClick: true
+  perMachine: false
+  runAfterFinish: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true
+  shortcutName: Cadabra OS
+  deleteAppDataOnUninstall: false
+  artifactName: CadabraOS-Setup-${version}.${ext}
+publish: null

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src 'self'" />
+    <title>Cadabra OS — visual preview</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="desktop">
+      <div class="wall"></div>
+      <div class="icons">
+        <div class="dicon"><i style="--c: #4f8cff"></i><span>Projects</span></div>
+        <div class="dicon"><i style="--c: #42c78b"></i><span>Budget.xlsx</span></div>
+        <div class="dicon"><i style="--c: #e9a23b"></i><span>Notes</span></div>
+      </div>
+
+      <div id="mail" class="win">
+        <div class="titlebar">
+          <span class="app-ico"></span><span class="ttl">Inbox — Mail</span>
+          <span class="caps"><i></i><i></i><i class="x"></i></span>
+        </div>
+        <div class="mail-body">
+          <nav class="side">
+            <div class="compose">✎ New mail</div>
+            <div class="fold sel">Inbox <b>4</b></div>
+            <div class="fold">Drafts</div>
+            <div class="fold">Sent</div>
+            <div class="fold">Archive</div>
+          </nav>
+          <section class="list">
+            <div class="row unread sel" id="row-q3"><b>Dana Whitfield</b><span>Q3 launch review</span><em>Can you export the deck as PDF before…</em></div>
+            <div class="row unread"><b>Build bot</b><span>Nightly failed: 2 tests</span><em>error TS2345: Argument of type…</em></div>
+            <div class="row"><b>Priya N.</b><span>Lunch Thursday?</span><em>The new ramen place opened…</em></div>
+            <div class="row unread"><b>Contoso Billing</b><span>Invoice #4471</span><em>Your invoice is ready…</em></div>
+            <div class="row"><b>Marco</b><span>Re: design crit</span><em>Love the gold accent, maybe…</em></div>
+          </section>
+          <article class="read">
+            <div class="tools"><span class="tb">Reply</span><span class="tb">Forward</span><span class="tb" id="btn-export">Export</span><span class="tb">⋯</span></div>
+            <h2>Q3 launch review</h2>
+            <div class="from"><span class="av">DW</span><div><b>Dana Whitfield</b><small>to me · 9:41 AM</small></div></div>
+            <p>Hi! Can you export the deck as PDF before the 2pm review? Also, the error banner on slide 4 still says <code>E_QUOTA_EXCEEDED</code> — any idea what that means?</p>
+            <div class="attach" id="attach"><span class="pdf">PPTX</span><div><b>Q3-launch.pptx</b><small>4.2 MB</small></div></div>
+            <p class="sig">— Dana</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="taskbar">
+        <div class="tb-center"><i class="start"></i><i></i><i></i><i class="act"></i><i></i></div>
+        <div class="tb-right"><span class="tray-spark"></span><span>9:42 AM</span></div>
+      </div>
+
+      <iframe id="overlay" class="overlay-frame" title="overlay"></iframe>
+      <iframe id="panel" class="panel-frame" title="panel"></iframe>
+    </div>
+    <div id="controls" class="controls"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

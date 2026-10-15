@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:" />
+    <title>Cadabra</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="root" class="panel">
+      <div class="tint"></div>
+      <div class="rim"></div>
+      <div class="shimmer" aria-hidden="true"></div>
+      <header class="head">
+        <div class="brand"><span id="brand-mark"></span><span class="brand-name">Cadabra</span></div>
+        <button id="model-pill" class="pill" type="button" title="Switch AI model">
+          <span class="pill-dot"></span><span id="model-label">Claude · Sonnet 5.5</span>
+          <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+        <div class="head-actions">
+          <button id="new-chat" class="icon-btn" type="button" title="New chat">
+            <svg width="15" height="15" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          </button>
+          <button id="settings-btn" class="icon-btn" type="button" title="Settings">
+            <svg width="15" height="15" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" stroke-width="1.4" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
+          </button>
+        </div>
+      </header>
+      <div id="target" class="target"><span class="target-dot"></span><span id="target-text">Looking at your screen</span></div>
+
+      <main id="scroll" class="scroll">
+        <div id="empty" class="empty">
+          <div class="empty-mark" id="empty-mark"></div>
+          <p class="empty-title">What would you like to know?</p>
+          <p class="empty-sub">Ask about what's on screen, or tell me what to do.</p>
+          <div class="suggestions" id="suggestions"></div>
+          <div class="setup" id="setup" hidden></div>
+        </div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+      </main>
+
+      <div id="status" class="status"><span class="status-orb"></span><span id="status-text">Looking…</span></div>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <canvas id="wave" class="wave" width="380" height="36"></canvas>
+        <textarea id="input" rows="1" placeholder="Ask about this window…" spellcheck="false"></textarea>
+        <button id="send" class="send" type="submit" title="Send (Enter)">
+          <svg class="i-send" width="16" height="16" viewBox="0 0 16 16"><path d="M8 13V3.5M3.8 7.6 8 3.4l4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          <svg class="i-stop" width="12" height="12" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="2" fill="currentColor" /></svg>
+        </button>
+      </form>
+      <div class="hint" id="hint"><kbd>Enter</kbd> send · <kbd>Esc</kbd> close</div>
+
+      <div id="picker" class="sheet" hidden>
+        <div class="sheet-head"><span>Choose your AI</span><button class="icon-btn" id="picker-close" type="button" title="Close">✕</button></div>
+        <div class="providers" id="providers"></div>
+        <div class="models" id="models"></div>
+      </div>
+
+      <section id="settings" class="settings" hidden></section>
+
+      <div class="hud" id="hud" aria-live="polite">
+        <span class="hud-orb"></span><span class="hud-text" id="hud-text">Working…</span>
+        <button type="button" class="hud-stop" id="hud-stop" title="Stop (Esc)"><svg width="10" height="10" viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9" rx="2" fill="currentColor" /></svg>Stop</button>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

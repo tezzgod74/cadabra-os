@@ -1,0 +1,144 @@
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+  font: 12px/1.3 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+#fx {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+#layer {
+  position: fixed;
+  inset: 0;
+}
+.abs {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform, opacity;
+}
+
+/* Summon: glass bloom that grows from the click to where the panel appears */
+.bloom {
+  border-radius: 10px;
+  transform-origin: 0 0;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(160, 140, 255, 0.35), transparent 60%),
+    linear-gradient(165deg, rgba(52, 38, 120, 0.55), rgba(18, 14, 46, 0.6));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 0 40px rgba(140, 120, 255, 0.35);
+}
+
+/* Scan: outline + sweep */
+.scan {
+  overflow: visible;
+}
+.sweep-clip {
+  overflow: hidden;
+  border-radius: 8px;
+}
+.sweep-band {
+  position: absolute;
+  top: -10%;
+  height: 120%;
+  width: 38%;
+  background: linear-gradient(100deg, transparent 0%, rgba(255, 236, 190, 0.05) 30%, rgba(255, 236, 190, 0.2) 50%, rgba(200, 185, 255, 0.07) 70%, transparent 100%);
+  will-change: transform;
+}
+
+/* Highlight rings */
+.ring {
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 2px rgba(255, 214, 128, 0.95),
+    0 0 0 6px rgba(255, 200, 100, 0.16),
+    0 0 26px 4px rgba(255, 190, 80, 0.45),
+    inset 0 0 18px rgba(255, 200, 100, 0.18);
+}
+.ring-pulse {
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px rgba(255, 214, 128, 0.8);
+}
+.ring-label {
+  padding: 3px 9px 4px;
+  border-radius: 9px;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: #2a1a00;
+  white-space: nowrap;
+  background: linear-gradient(180deg, #ffe7ad, #f4bb59);
+  box-shadow:
+    0 6px 16px -6px rgba(255, 180, 60, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Ghost cursor */
+.ghost {
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 34%, #fffbe9 0%, #ffe3a1 26%, #ffc864 50%, #e8a237 72%, rgba(232, 162, 55, 0) 74%);
+  box-shadow:
+    0 0 14px 4px rgba(255, 205, 110, 0.55),
+    0 0 42px 10px rgba(255, 185, 80, 0.22);
+}
+.ghost-halo {
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 214, 140, 0.22), rgba(255, 214, 140, 0) 65%);
+}
+.click-ring {
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px rgba(255, 220, 150, 0.95),
+    0 0 18px rgba(255, 200, 100, 0.6);
+}
+.caption {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px 6px 9px;
+  border-radius: 10px;
+  color: #f4f0ff;
+  font-size: 12px;
+  white-space: nowrap;
+  background: linear-gradient(170deg, rgba(40, 30, 92, 0.92), rgba(16, 12, 40, 0.94));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 10px 24px -10px rgba(0, 0, 0, 0.7);
+}
+.caption::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffd27a;
+  box-shadow: 0 0 8px rgba(255, 210, 122, 0.9);
+}
+
+/* Launch: the app icon flying toward its window */
+.launch-ico {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(255, 205, 110, 0.7));
+}
+div.launch-ico {
+  background: radial-gradient(circle at 36% 34%, #fffbe9, #ffc864 55%, rgba(232, 162, 55, 0) 72%);
+}
