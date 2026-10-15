@@ -176,13 +176,13 @@ describe('AUTH-1: API-key mode (via the user’s Claude Code app) can never fall
     expect(vertex.AWS_BEARER_TOKEN_BEDROCK).toBeUndefined();
     expect(vertex.ANTHROPIC_VERTEX_PROJECT_ID).toBe('p');
   });
-  it('0.9.2 M1: --bare never comes with web tools or the hook settings (hooks don’t run under --bare)', async () => {
+  it('0.9.2 M1 / 0.9.3 toggle OFF: --bare, no web tools, no hook settings (hooks don’t run under --bare)', async () => {
     const a = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', webSettingsFile: 's.json', bare: true });
     expect(a[a.indexOf('--tools') + 1]).toBe('');
     expect(a).not.toContain('--settings');
     const logFile = path.join(tmp, 'web.log');
     process.env.FAKE_LOG = logFile;
-    const p = apiProvider('w6', 'sk-ant-test', { webAccess: () => true });
+    const p = apiProvider('w6', 'sk-ant-test', { webAccess: () => true, apiWeb: () => false });
     try {
       expect(p.webAvailable()).toBe(false);
       await collect(p);
@@ -194,6 +194,89 @@ describe('AUTH-1: API-key mode (via the user’s Claude Code app) can never fall
       p.reset();
     }
   }, 30_000);
+  it('0.9.3 toggle ON: no --bare, only web tools + Cadabra MCP, hook-only --settings, every other lock kept', async () => {
+    const logFile = path.join(tmp, 'web-on.log');
+    process.env.FAKE_LOG = logFile;
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = 'leak-test';
+    process.env.AWS_BEARER_TOKEN_BEDROCK = 'leak-test';
+    const p = apiProvider('w7', 'sk-ant-test', { webAccess: () => true, apiWeb: () => true });
+    try {
+      expect(p.webAvailable()).toBe(true);
+      const evs = await collect(p);
+      expect(evs.filter((e) => e.type === 'text').map((e: any) => e.delta).join('')).toBe('Ready.');
+      const log = readLog(logFile)[0];
+      const argv: string[] = log.argv;
+      expect(argv).not.toContain('--bare');
+      expect(argv[argv.indexOf('--tools') + 1]).toBe('WebSearch,WebFetch');
+      expect(argv[argv.indexOf('--allowedTools') + 1]).toBe('mcp__cadabra__*'); // web tools are NOT allow-listed: the hook decides
+      expect(argv[argv.indexOf('--setting-sources') + 1]).toBe('');
+      expect(argv[argv.indexOf('--permission-mode') + 1]).toBe('dontAsk');
+      expect(argv).toContain('--strict-mcp-config');
+      const settings = JSON.parse(fs.readFileSync(argv[argv.indexOf('--settings') + 1], 'utf8'));
+      expect(Object.keys(settings)).toEqual(['hooks']);
+      expect(Object.keys(settings.hooks)).toEqual(['PreToolUse']);
+      expect(settings.hooks.PreToolUse[0].matcher).toBe('WebSearch|WebFetch');
+      expect(settings.hooks.PreToolUse[0].hooks[0]).toMatchObject({ type: 'http', url: 'http://127.0.0.1:1/hook/web' });
+      expect(argv.join(' ')).not.toContain('sk-ant-test');
+      expect(log.apiKey).toBe('sk-ant-test');
+      expect(log.configDir).toBe(path.join(tmp, 'w7-cfg'));
+      expect(log.authVars.filter((k: string) => /OAUTH|AUTH_TOKEN|BEDROCK/.test(k))).toEqual([]);
+      expect(path.basename(log.cwd)).toBe('claude-cwd');
+      expect(fs.readdirSync(log.cwd)).toEqual([]); // an empty private working folder
+    } finally {
+      delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      delete process.env.AWS_BEARER_TOKEN_BEDROCK;
+      p.reset();
+    }
+  }, 30_000);
+  it('0.9.3 toggle ON: the preventive auth check still refuses another credential (nothing sent)', async () => {
+    const logFile = path.join(tmp, 'web-on-pre.log');
+    process.env.FAKE_LOG = logFile;
+    process.env.FAKE_ACCOUNT_SOURCE = 'none';
+    process.env.FAKE_TOKEN_SOURCE = 'claude.ai';
+    const p = apiProvider('w8', 'sk-ant-test', { webAccess: () => true, apiWeb: () => true });
+    try {
+      const evs = await collect(p);
+      expect(evs.some((e) => e.type === 'error' && /didn’t send anything/.test(e.message))).toBe(true);
+      const lines = readLog(logFile);
+      expect(lines[0].argv).not.toContain('--bare');
+      expect(lines.some((l) => l.userMessage)).toBe(false);
+    } finally {
+      delete process.env.FAKE_ACCOUNT_SOURCE;
+      delete process.env.FAKE_TOKEN_SOURCE;
+      p.reset();
+    }
+  }, 30_000);
+  it('0.9.3: web access off overrides the toggle; flipping the toggle replaces a warm process', async () => {
+    const logFile = path.join(tmp, 'web-flip.log');
+    process.env.FAKE_LOG = logFile;
+    let apiWeb = false;
+    const p = apiProvider('w9', 'sk-ant-test', { webAccess: () => true, apiWeb: () => apiWeb });
+    const off = apiProvider('w10', 'sk-ant-test', { webAccess: () => false, apiWeb: () => true });
+    try {
+      await p.prewarm('m');
+      apiWeb = true;
+      await collect(p);
+      const runs = readLog(logFile).filter((l) => l.argv).map((l) => l.argv.includes('--bare'));
+      expect(runs).toEqual([true, false]);
+      const offLog = path.join(tmp, 'web-off.log');
+      process.env.FAKE_LOG = offLog;
+      await collect(off);
+      const argv: string[] = readLog(offLog)[0].argv;
+      expect(argv).toContain('--bare');
+      expect(argv[argv.indexOf('--tools') + 1]).toBe('');
+    } finally {
+      p.reset();
+      off.reset();
+    }
+  }, 30_000);
+  it('0.9.3 settings: claudeApiWeb defaults on, merges booleans only, and is a renderer preference', async () => {
+    const { DEFAULT_SETTINGS, mergeSettings, sanitizeRendererPatch } = await import('../src/shared/settings');
+    expect(DEFAULT_SETTINGS.claudeApiWeb).toBe(true);
+    expect(mergeSettings({ claudeApiWeb: false }).claudeApiWeb).toBe(false);
+    expect(mergeSettings({ claudeApiWeb: 'no' }).claudeApiWeb).toBe(true);
+    expect(sanitizeRendererPatch({ claudeApiWeb: false })).toEqual({ claudeApiWeb: false });
+  });
   it('changing the saved key replaces a warm process (never reused with the old key)', async () => {
     const logFile = path.join(tmp, 'swap.log');
     process.env.FAKE_LOG = logFile;
@@ -260,7 +343,7 @@ describe('Export diagnostics: redaction', () => {
     expect(t).not.toMatch(/@example\.com|sk-ant-|AIza|abcdefghijklmnopqrstuv|0123456789abcdef0123/);
     if (os.userInfo().username.length >= 3) expect(t).not.toContain(os.userInfo().username);
     expect(redact(os.homedir())).not.toContain(path.basename(os.homedir()));
-    const bundle = diagnosticsText({ version: '0.9.2', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
+    const bundle = diagnosticsText({ version: '0.9.3', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
     expect(bundle).not.toContain('Alex');
     expect(bundle).toContain('Signed in to ChatGPT (Plus)');
   });

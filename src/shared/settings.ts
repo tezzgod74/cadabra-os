@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   onboarded: false,
   claudeRoute: 'api-key',
   webAccess: true,
+  claudeApiWeb: true,
   location: '',
   micNotCall: [],
   greetings: { enabled: true, awayMinutes: 20, quietStart: '', quietEnd: '', recent: [] },
@@ -58,6 +59,7 @@ export function mergeSettings(raw: unknown, defaults: Settings = DEFAULT_SETTING
   if (raw.claudeRoute === 'api-key' || raw.claudeRoute === 'claude-code' || raw.claudeRoute === 'bedrock' || raw.claudeRoute === 'vertex') out.claudeRoute = raw.claudeRoute;
   if (typeof raw.displayName === 'string') out.displayName = raw.displayName.trim().slice(0, 40);
   if (typeof raw.webAccess === 'boolean') out.webAccess = raw.webAccess;
+  if (typeof raw.claudeApiWeb === 'boolean') out.claudeApiWeb = raw.claudeApiWeb;
   if (Array.isArray(raw.micNotCall)) out.micNotCall = raw.micNotCall.filter((x): x is string => typeof x === 'string' && /^[\w .()+-]{1,120}$/i.test(x)).map((x) => x.toLowerCase()).slice(-30);
   if (isObj(raw.greetings)) {
     const g = raw.greetings;
@@ -154,7 +156,7 @@ export function applyPatch(cur: Settings, patch: Partial<Settings>): Settings {
 export function sanitizeRendererPatch(raw: unknown): Partial<Settings> {
   if (!isObj(raw)) return {};
   const out: Record<string, unknown> = {};
-  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'location', 'greetings'] as const) {
+  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'claudeApiWeb', 'location', 'greetings'] as const) {
     if (k in raw) out[k] = raw[k];
   }
   // Only the autonomy level is a renderer preference (grants have their own IPC). A partial

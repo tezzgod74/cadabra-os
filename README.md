@@ -6,7 +6,7 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
-> **Status: 0.9.2, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
+> **Status: 0.9.3, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
 
 ## Features
 
@@ -44,7 +44,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 ## Install
 
-1. Download `CadabraOS-Setup-0.9.2.exe` from the releases page, or [build it yourself](#build-from-source).
+1. Download `CadabraOS-Setup-0.9.3.exe` from the releases page, or [build it yourself](#build-from-source).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen warns: choose **More info → Run anyway**. It installs per user, with no admin prompt.
 3. A short setup opens in the panel: try the shortcut, choose what to be called, connect your AI (with a live test), and optionally turn on voice. You can reopen it from the tray (**Set up Cadabra…**).
 
@@ -58,7 +58,7 @@ You need Node.js 24 (see `.nvmrc`), Rust stable (MSVC) and the Visual Studio C++
 npm ci
 npm run build:native   # the Rust helper
 npm start              # build the JS and run the app
-npm run dist           # → dist/CadabraOS-Setup-0.9.2.exe (NSIS, per-user)
+npm run dist           # → dist/CadabraOS-Setup-0.9.3.exe (NSIS, per-user)
 ```
 
 Handy dev modes: `npm run demo` (visual preview stage with every state), `npm run demo:live` (real windows, offline backend, no hooks) and `npm run screenshots`. [CONTRIBUTING.md](CONTRIBUTING.md) has the full command list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how it fits together.
@@ -73,7 +73,7 @@ Cadabra talks to Claude through **Claude Code**, Anthropic's app. It's free to i
    - **Use an Anthropic API key** if you'd rather pay per use. Create a key at [console.anthropic.com](https://console.anthropic.com/settings/keys), paste it in and press **Save key**. Anthropic bills you for what you use, separately from any subscription. The key is stored encrypted on your PC and is only given to Claude Code, never to anything else.
 3. **Test it.** Press **Test**. Cadabra sends Claude a tiny message and shows the answer ("It works!").
 
-Web search (news, sports) currently works with the Claude subscription route, Codex, Gemini or Copilot. With an API key, Bedrock or Vertex, Claude can't search the web yet (weather still works).
+**Web search with an API key:** with an API key (or Bedrock / Vertex), the switch **Web search with your Claude API key** (in the Connect step and in Settings → Web access, on by default) lets Claude search and read the web for news and sports. Cadabra checks every search first, and Anthropic bills web searches per search, on top of normal use. Turn it off and Claude simply can't search the web (weather still works).
 
 Already have Claude Code installed somewhere unusual? Use **Find it on my PC…** under "Install it yourself instead".
 

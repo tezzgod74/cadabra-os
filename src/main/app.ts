@@ -324,6 +324,7 @@ export class CadabraApp {
           workDir: work,
           version,
           route: () => s().claudeRoute,
+          apiWeb: () => s().claudeApiWeb,
           // AUTH-1 layer 3: an empty, Cadabra-owned config dir for the API-key runtime.
           configDir: path.join(app.getPath('userData'), 'claude-api-config'),
           mcp: () => this.ensureMcp(),
@@ -915,7 +916,7 @@ export class CadabraApp {
     if (c?.lastReply && /\?\s*$/.test(c.lastReply.trim())) parts.push('Your previous reply ended with a question, so end this one without a question.');
     const st = this.settings.get();
     if (!st.webAccess) parts.push('Web access is OFF in Settings: you cannot search the web. If the user needs current information, say so and suggest turning on Settings → Web access.');
-    else if (st.provider === 'claude' && st.claudeRoute !== 'claude-code') parts.push('Web search is not available with this Claude connection (API key, Bedrock or Vertex). If the user needs current information from the web, say so plainly; it works with the Claude subscription, Codex, Gemini or Copilot. Weather still works through your weather tool.');
+    else if (st.provider === 'claude' && st.claudeRoute !== 'claude-code' && !st.claudeApiWeb) parts.push('Web search is not available with this Claude connection (API key, Bedrock or Vertex). If the user needs current information from the web, say so plainly; it can be turned on in Settings → Web access ("Web search with your Claude API key"). Weather still works through your weather tool.');
     const persona = personaContext(this.settings.get().voice);
     if (persona) parts.push(persona);
     return parts.join(' ');
@@ -1768,7 +1769,7 @@ export class CadabraApp {
 
   /** Round 7: backends start their sessions with web tools on or off; restart them. */
   onWebAccessChanged() {
-    console.log(`[web] web access ${this.settings.get().webAccess ? 'on' : 'off'}`);
+    console.log(`[web] web access ${this.settings.get().webAccess ? 'on' : 'off'}; with a Claude API key ${this.settings.get().claudeApiWeb ? 'on' : 'off'}`);
     for (const p of Object.values(this.providers)) {
       p.reset?.();
       void p.dispose?.();
@@ -2158,7 +2159,7 @@ export class CadabraApp {
       if (before.paused !== after.paused) this.setPaused(after.paused);
       this.onVoiceSettingsChanged(before, after);
       if (before.provider !== after.provider) this.conv.newChat();
-      if (before.webAccess !== after.webAccess) this.onWebAccessChanged();
+      if (before.webAccess !== after.webAccess || before.claudeApiWeb !== after.claudeApiWeb) this.onWebAccessChanged();
       if (JSON.stringify(before.summon) !== JSON.stringify(after.summon)) void this.applyBinding();
       this.authCache.clear();
       return after;

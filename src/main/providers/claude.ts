@@ -41,6 +41,8 @@ export interface ClaudeDeps {
   openLoginTerminal?: (exe: string) => void;
   /** Round 7: web access setting. */
   webAccess?: () => boolean;
+  /** 0.9.3: web search on the API-key / Bedrock / Vertex routes (default on). */
+  apiWeb?: () => boolean;
   /** Round 7: Cadabra's decision on one web search / fetch (wired to the HTTP hook by the app). */
   webGuard?: (tool: 'search' | 'fetch', text: string) => Promise<{ allow: boolean; reason?: string }>;
 }
@@ -121,16 +123,26 @@ export class ClaudeProvider implements ProviderAdapter {
     return r === 'claude-code' || r === 'bedrock' || r === 'vertex' ? r : 'api-key';
   }
 
-  /** Web search works for this Claude connection (only the subscription route; see ensureCli). */
+  /**
+   * Web search for this Claude connection. The subscription route always can.
+   * API key / Bedrock / Vertex can when "Web search with your Claude API key"
+   * is on: Claude Code then runs WITHOUT --bare (which would skip Cadabra's
+   * web-guard hook), with every other lock kept (claude-cli.ts).
+   */
   webAvailable(): boolean {
-    return this.route() === 'claude-code';
+    return this.route() === 'claude-code' || this.deps.apiWeb?.() !== false;
+  }
+
+  /** Web tools offered to this process: web access on and available for the route. */
+  private webOn(): boolean {
+    return !!this.deps.webAccess?.() && this.webAvailable();
   }
 
   /** Changes when the route or the saved key changes, so a stale process is never reused. */
   private identity(): string {
     const route = this.route();
     const key = route === 'api-key' ? (this.deps.apiKey()?.trim() ?? '') : '';
-    return `${route}:${key ? createHash('sha256').update(key).digest('hex').slice(0, 16) : '-'}`;
+    return `${route}:${key ? createHash('sha256').update(key).digest('hex').slice(0, 16) : '-'}:${this.webOn() ? 'web' : 'noweb'}`;
   }
 
   async listModels(): Promise<ModelOption[]> {
@@ -270,11 +282,10 @@ export class ClaudeProvider implements ProviderAdapter {
           revokeSession: this.deps.revokeSession,
           issueSession: this.deps.issueSession,
           permissionPrompts: !v || versionAtLeast(v, CLAUDE_CODE_PERMISSION_PROMPTS_VERSION),
-          // `--bare` (API key / Bedrock / Vertex) disables hooks and Claude Code's
-          // web tools (verified locally against Claude Code 2.1.212, round 0.9.2),
-          // so Cadabra's web guard couldn't run: web tools are only offered on
-          // the subscription route, where the guard hook works.
-          web: route === 'claude-code' && !!this.deps.webAccess?.(),
+          // `--bare` disables hooks and Claude Code's web tools (verified locally,
+          // 0.9.2), so web search on the API routes means running without
+          // --bare; the session keeps every other lock (0.9.3, claude-cli.ts).
+          web: this.webOn(),
           route,
           // AUTH-1 layer 2: the key goes only into this child's environment.
           apiKey: route === 'api-key' ? this.deps.apiKey() : undefined,

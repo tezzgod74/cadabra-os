@@ -2058,3 +2058,18 @@ kbd.cap {
   letter-spacing: normal;
   color: var(--ink);
 }
+
+.cl-web {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.cl-web b {
+  font-size: 12px;
+}
+.cl-web small {
+  display: block;
+}

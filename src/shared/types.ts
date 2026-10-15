@@ -123,6 +123,8 @@ export interface Settings {
   claudeRoute: 'api-key' | 'claude-code' | 'bedrock' | 'vertex';
   /** Round 7: the AI may search / read the web (read-only), on by default. */
   webAccess: boolean;
+  /** 0.9.3: web search for Claude's API-key / Bedrock / Vertex routes (runs Claude Code without --bare so Cadabra's web guard hook works). */
+  claudeApiWeb: boolean;
   /** Round 7: "Your location" (a city) for weather; '' = ask once in conversation. Never guessed from the IP. */
   location: string;
   /** Round 8: spoken welcome greetings (no panel). */

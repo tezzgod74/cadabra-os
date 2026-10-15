@@ -30,7 +30,7 @@ if (argv[0] === 'auth' && argv[1] === 'status') {
 // Print mode.
 const mcpIdx = argv.indexOf('--mcp-config');
 const authVars = Object.keys(process.env).filter((k) => /OAUTH|AUTH_TOKEN|ANTHROPIC|CLAUDE_CODE_USE|CLAUDE_CONFIG_DIR/i.test(k));
-log({ argv, hasApiKeyEnv: !!process.env.ANTHROPIC_API_KEY, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authVars, configDir: process.env.CLAUDE_CONFIG_DIR ?? null, mcpConfig: mcpIdx > 0 ? JSON.parse(fs.readFileSync(argv[mcpIdx + 1], 'utf8')) : null });
+log({ argv, cwd: process.cwd(), hasApiKeyEnv: !!process.env.ANTHROPIC_API_KEY, apiKey: process.env.ANTHROPIC_API_KEY ?? null, authVars, configDir: process.env.CLAUDE_CONFIG_DIR ?? null, mcpConfig: mcpIdx > 0 ? JSON.parse(fs.readFileSync(argv[mcpIdx + 1], 'utf8')) : null });
 const keySource = process.env.ANTHROPIC_API_KEY ? 'ANTHROPIC_API_KEY' : undefined;
 let turn = 0;
 createInterface({ input: process.stdin }).on('line', (line) => {

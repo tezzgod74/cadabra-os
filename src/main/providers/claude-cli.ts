@@ -216,17 +216,27 @@ export class ClaudeCliSession {
       fs.writeFileSync(webSettingsFile, JSON.stringify(claudeWebHookSettings({ url: mcp.url.replace(/\/mcp$/, '/hook/web'), token: mcp.token, sessionKey: this.sessionKey })), { mode: 0o600 });
       this.files.push(webSettingsFile);
     }
+    // An empty private working folder: no project CLAUDE.md / .mcp.json / .claude settings to find.
+    const runDir = path.join(this.deps.workDir, 'claude-cwd');
+    fs.mkdirSync(runDir, { recursive: true });
     // Subscription: no API key or other Cadabra credential; the app uses the
     // user's own Claude Code login. Other routes: only that route's credential
     // (claudeApiEnv throws NoApiKeyError before anything is spawned).
     const api = this.route !== 'claude-code';
+    // API routes: `--bare` unless web search is on. Without --bare (0.9.3) the
+    // other locks still hold: private empty CLAUDE_CONFIG_DIR, scrubbed env, key
+    // only in this env, `--setting-sources ""`, strict MCP config, --settings
+    // with only the web-guard hook, an empty private working folder, and the
+    // `initialize` auth-source check below (verified against the real Claude
+    // Code with a fake key and a fake API: internal notes, 0.9.3).
+    const bare = api && !this.deps.web;
     let env: NodeJS.ProcessEnv;
     if (api) {
       const configDir = this.deps.configDir ?? path.join(this.deps.workDir, 'claude-config');
       fs.mkdirSync(configDir, { recursive: true });
       env = claudeApiEnv(process.env, { route: this.route as Exclude<ClaudeRoute, 'claude-code'>, key: this.deps.apiKey, configDir, version: this.deps.version ?? '0' });
     } else env = claudeCodeEnv();
-    const proc = spawnCli(this.deps.exe, claudeCliArgs({ model: this.model, mcpConfigFile: mcpFile, systemPromptFile: promptFile, permissionPrompts: this.deps.permissionPrompts, webSettingsFile, bare: api }), { cwd: this.deps.workDir, env });
+    const proc = spawnCli(this.deps.exe, claudeCliArgs({ model: this.model, mcpConfigFile: mcpFile, systemPromptFile: promptFile, permissionPrompts: this.deps.permissionPrompts, webSettingsFile, bare }), { cwd: runDir, env });
     this.proc = proc;
     proc.stdin.on('error', () => undefined);
     // Round 4.5: the CLI's own errors go to Cadabra's (redacted) log, rate-limited.

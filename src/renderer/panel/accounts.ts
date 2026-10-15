@@ -30,6 +30,9 @@ export interface AccountApi {
   installCli(provider: string): Promise<{ ok: boolean; error?: string; view?: AccountView } | null>;
   browseCli?(provider: string): Promise<AccountView | null>;
   openExternal(url: string): void;
+  /** Settings access (0.9.3: the "web search with your API key" switch in the Claude setup). */
+  getSettings?(): Promise<any>;
+  setSettings?(patch: unknown): Promise<any>;
 }
 
 export const BACKEND_BLURB: Record<string, string> = {
@@ -55,6 +58,8 @@ export function statusChip(v: Pick<AccountView, 'auth'>): string {
 export async function renderAccount(el: HTMLElement, api: AccountApi, provider: string, onChange?: (v: AccountView) => void): Promise<void> {
   /** Claude's guided setup: where the one-click install is (round 13). */
   let install: { state: 'idle' | 'consent' | 'running' | 'failed'; error?: string } = { state: 'idle' };
+  /** 0.9.3: "Web search with your API key" (settings.claudeApiWeb). */
+  let apiWeb: boolean | undefined;
 
   el.innerHTML = `<div class="acct loading"><span class="status-orb"></span> Checking ${esc(provider)}…</div>`;
   const view = await api.accountOptions(provider);
@@ -172,6 +177,16 @@ export async function renderAccount(el: HTMLElement, api: AccountApi, provider: 
   // Claude Code. 1. get the Claude Code app (one click, or by hand), 2. connect
   // (sign in with a Claude plan, or paste an API key), 3. test. No jargon.
   function drawClaude(v: AccountView, progress = '') {
+    if (apiWeb === undefined && api.getSettings) {
+      apiWeb = true;
+      void api.getSettings().then((d) => {
+        const on = (d?.settings ?? d)?.claudeApiWeb !== false;
+        if (on !== apiWeb) {
+          apiWeb = on;
+          drawClaude(v, progress);
+        }
+      });
+    }
     const installed = v.install?.installed !== false;
     const connected = installed && v.auth.ok;
     const sub = v.options.find((o) => o.id === 'claude-code');
@@ -226,7 +241,8 @@ export async function renderAccount(el: HTMLElement, api: AccountApi, provider: 
            <small>You pay Anthropic for what you use, separately from any Claude subscription. Create a key on Anthropic’s website, then paste it here. It’s stored encrypted on this PC.</small>
            <a class="inst-docs cl-keylink" href="https://console.anthropic.com/settings/keys">Get a key at console.anthropic.com</a>
            <input type="password" class="acct-key" placeholder="Paste your API key (sk-ant-…)" aria-label="Your Anthropic API key" />
-           <button type="button" class="btn ghost acct-go">Save key</button>`,
+           <button type="button" class="btn ghost acct-go">Save key</button>
+           ${api.setSettings ? `<div class="cl-web"><div><b>Web search with your API key</b><small>Lets Claude search and read the web; Cadabra checks every search first. Anthropic bills web searches per search, on top of normal use.</small></div><button type="button" class="toggle${apiWeb ? ' on' : ''}" role="switch" aria-checked="${apiWeb}" aria-label="Web search with your API key"></button></div>` : ''}`,
         )}
         ${
           more.length
@@ -313,6 +329,13 @@ export async function renderAccount(el: HTMLElement, api: AccountApi, provider: 
       keyIn?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') go.click();
       });
+    });
+    q<HTMLButtonElement>('.cl-web .toggle')?.addEventListener('click', async (e) => {
+      const t = e.currentTarget as HTMLButtonElement;
+      apiWeb = !t.classList.contains('on');
+      t.classList.toggle('on', apiWeb);
+      t.setAttribute('aria-checked', String(apiWeb));
+      await api.setSettings?.({ claudeApiWeb: apiWeb });
     });
     q<HTMLButtonElement>('.acct-test')?.addEventListener('click', async () => {
       setProgress('Sending Claude a tiny test message…');

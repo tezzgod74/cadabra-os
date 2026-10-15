@@ -54,6 +54,7 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] **API key:** the link opens console.anthropic.com; paste a key and **Save key**; the chip says *Connected*. A wrong or empty key gives a clear message and nothing is sent.
 - [ ] **Test** says *It works! Claude answered: "Ready."*
 - [ ] Switching between subscription and API key and pressing **Test** again works each time.
+- [ ] With an API key and **Web search with your API key** on, ask for today's news: an answer with sources. Turn the switch off and ask again: Claude says it can't search the web; *"what's the weather?"* still works.
 
 ### 3. Summon and type immediately
 

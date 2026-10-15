@@ -4,6 +4,10 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.3
+
+- **Web search with your Claude API key:** a new switch, in Settings → Web access and in the Claude setup's Connect step, on by default. With it on, Claude with an API key (or Bedrock / Vertex) can search and read the web, and Cadabra checks every search first. Anthropic bills web searches per search. To make Cadabra's check possible, Claude Code runs without `--bare` in this case; everything else stays locked: a private empty settings folder, no other credentials in its environment, only Cadabra's tools plus web search and fetch, no user or project settings, memory files, plugins, MCP servers or hooks, an empty working folder, and the "is it really your API key?" check before anything is sent. With the switch off, nothing changes from 0.9.2.
+
 ## 0.9.2
 
 - **Web search and Claude API keys:** Claude Code's `--bare` mode (used for API key, Bedrock and Vertex) turns off hooks and its web tools, so Cadabra's web guard couldn't check searches there. Those routes no longer offer web search at all; Settings → Web access says so, and Claude tells you plainly if you ask for current news. Web search keeps working with the Claude subscription, Codex, Gemini and Copilot; weather works everywhere.
