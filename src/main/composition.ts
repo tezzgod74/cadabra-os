@@ -93,3 +93,38 @@ export const SESSION_HELPER_KEYS = {
   lockWorkstation: 'lockWorkstation',
   inputState: 'inputState',
 } as const satisfies Record<keyof SessionHelper, keyof HelperClient>;
+
+// ---------------------------------------------------------------- skills --
+// 0.9.5: where skills live, and the registry the app hands to the ToolHost.
+import path from 'node:path';
+import { SkillRegistry } from './skills';
+import type { Settings } from '../shared/types';
+
+/**
+ * Skill folders. Built-in: <resources>/skills (shipped). User: Documents\Cadabra\Skills
+ * (persistent across updates). Test and demo modes use a folder in their own
+ * data folder so they never touch the real Documents.
+ */
+export function skillDirs(o: { resources: string; documents: string; userData: string; isolated: boolean }): { builtinDir: string; userDir: string } {
+  return {
+    builtinDir: path.join(o.resources, 'skills'),
+    userDir: o.isolated ? path.join(o.userData, 'skills') : path.join(o.documents, 'Cadabra', 'Skills'),
+  };
+}
+
+/** The production registry: enable flags in settings.skills.enabled, tool names from the ToolHost. */
+export function skillRegistryFor(o: {
+  dirs: { builtinDir: string; userDir: string };
+  settings: { get(): Settings; update(p: Partial<Settings>): unknown };
+  toolNames: () => readonly string[];
+  log?: (l: string) => void;
+}): SkillRegistry {
+  return new SkillRegistry({
+    builtinDir: o.dirs.builtinDir,
+    userDir: o.dirs.userDir,
+    enabledMap: () => o.settings.get().skills?.enabled ?? {},
+    setEnabledMap: (m) => void o.settings.update({ skills: { enabled: m } }),
+    knownTools: o.toolNames,
+    log: o.log,
+  });
+}

@@ -14,8 +14,8 @@ use windows::Win32::Foundation::*;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::core::Interface;
 use windows::Win32::Media::Audio::Endpoints::IAudioMeterInformation;
-use windows::Win32::Media::Audio::{eConsole, eRender, AudioSessionStateActive, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator, MMDeviceEnumerator, DEVICE_STATE_ACTIVE};
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+use windows::Win32::Media::Audio::{eConsole, eRender, AudioSessionStateActive, IAudioSessionControl2, IAudioSessionManager2, IMMDeviceEnumerator, ISimpleAudioVolume, MMDeviceEnumerator, DEVICE_STATE_ACTIVE};
+use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoTaskMemFree, CLSCTX_ALL, COINIT_MULTITHREADED};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::RemoteDesktop::{WTSRegisterSessionNotification, NOTIFY_FOR_THIS_SESSION};
 use windows::Win32::System::Shutdown::LockWorkStation;
@@ -181,6 +181,120 @@ fn collect_sessions(exclude: &[u32], fresh: bool) -> Result<Vec<serde_json::Valu
     Ok(out)
 }
 
+// ------------------------------------------------------------- ducking --
+// 0.9.6: lower other apps' audio while an announcement plays, and restore it
+// after. Each ducked session is remembered by its session instance id with
+// its previous volume: in memory here (restored when the app goes away, on
+// stdin EOF), and returned to the app, which keeps a copy on disk and restores
+// it on the next start if anything crashed in between.
+
+static DUCKED: std::sync::Mutex<Vec<(String, f32)>> = std::sync::Mutex::new(Vec::new());
+
+/// Visit every audio session on every active render device.
+fn for_each_session(fresh: bool, mut f: impl FnMut(&IAudioSessionControl2, u32, bool)) -> Result<(), String> {
+    let en = enumerator(fresh)?;
+    unsafe {
+        let devs = en.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE).map_err(|e| e.to_string())?;
+        let n = devs.GetCount().unwrap_or(0);
+        for i in 0..n {
+            let Ok(dev) = devs.Item(i) else { continue };
+            let Ok(mgr) = dev.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None) else { continue };
+            let Ok(sessions) = mgr.GetSessionEnumerator() else { continue };
+            let count = sessions.GetCount().unwrap_or(0);
+            for j in 0..count {
+                let Ok(ctl) = sessions.GetSession(j) else { continue };
+                let Ok(ctl2) = ctl.cast::<IAudioSessionControl2>() else { continue };
+                if ctl2.IsSystemSoundsSession() == S_OK {
+                    continue;
+                }
+                let pid = ctl2.GetProcessId().unwrap_or(0);
+                let active = ctl.GetState().map(|s| s == AudioSessionStateActive).unwrap_or(false);
+                f(&ctl2, pid, active);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn session_id(ctl2: &IAudioSessionControl2) -> Option<String> {
+    unsafe {
+        let p = ctl2.GetSessionInstanceIdentifier().ok()?;
+        let s = p.to_string().ok();
+        CoTaskMemFree(Some(p.0 as *const core::ffi::c_void));
+        s
+    }
+}
+
+/// Pure: the ducked level (never louder, never negative).
+pub fn ducked_level(old: f32, factor: f32) -> f32 {
+    (old * factor.clamp(0.0, 1.0)).clamp(0.0, 1.0)
+}
+
+/// Lower every other app's active audio session to `factor` of its volume.
+pub fn duck(exclude: &[u32], factor: f32) -> RpcResult {
+    let me = std::process::id();
+    let mut saved: Vec<(String, f32)> = Vec::new();
+    let already: Vec<String> = DUCKED.lock().map(|d| d.iter().map(|x| x.0.clone()).collect()).unwrap_or_default();
+    let visit = |ctl2: &IAudioSessionControl2, pid: u32, active: bool, saved: &mut Vec<(String, f32)>| {
+        if !active || pid == 0 || pid == me || exclude.contains(&pid) {
+            return;
+        }
+        let Some(id) = session_id(ctl2) else { return };
+        if already.contains(&id) {
+            return;
+        }
+        let Ok(vol) = ctl2.cast::<ISimpleAudioVolume>() else { return };
+        unsafe {
+            let Ok(old) = vol.GetMasterVolume() else { return };
+            if vol.SetMasterVolume(ducked_level(old, factor), std::ptr::null()).is_ok() {
+                saved.push((id, old));
+            }
+        }
+    };
+    if for_each_session(false, |c, p, a| visit(c, p, a, &mut saved)).is_err() {
+        for_each_session(true, |c, p, a| visit(c, p, a, &mut saved))?;
+    }
+    if let Ok(mut d) = DUCKED.lock() {
+        d.extend(saved.iter().cloned());
+    }
+    Ok(json!({ "ducked": saved.iter().map(|(i, v)| json!({ "id": i, "volume": v })).collect::<Vec<_>>() }))
+}
+
+/// Put ducked sessions back to their previous volume. `list` = from the app's
+/// crash-recovery file; None = everything this helper ducked.
+pub fn unduck(list: Option<Vec<(String, f32)>>) -> RpcResult {
+    let want: Vec<(String, f32)> = match list {
+        Some(l) => {
+            if let Ok(mut d) = DUCKED.lock() {
+                d.retain(|x| !l.iter().any(|y| y.0 == x.0));
+            }
+            l
+        }
+        None => DUCKED.lock().map(|mut d| std::mem::take(&mut *d)).unwrap_or_default(),
+    };
+    let mut restored = 0;
+    if !want.is_empty() {
+        let mut visit = |ctl2: &IAudioSessionControl2, _pid: u32, _active: bool| {
+            let Some(id) = session_id(ctl2) else { return };
+            let Some((_, old)) = want.iter().find(|x| x.0 == id) else { return };
+            if let Ok(vol) = ctl2.cast::<ISimpleAudioVolume>() {
+                if unsafe { vol.SetMasterVolume(old.clamp(0.0, 1.0), std::ptr::null()) }.is_ok() {
+                    restored += 1;
+                }
+            }
+        };
+        if for_each_session(false, &mut visit).is_err() {
+            for_each_session(true, &mut visit)?;
+        }
+    }
+    Ok(json!({ "restored": restored }))
+}
+
+/// Called when the app goes away (stdin closed): never leave other apps quiet.
+pub fn restore_on_exit() {
+    let _ = unduck(None);
+}
+
 /// "Lock my PC": exactly like Win+L. Unlocking stays with Windows (Hello / PIN / password).
 pub fn lock_workstation() -> RpcResult {
     unsafe { LockWorkStation() }.map_err(|e| e.to_string())?;
@@ -190,6 +304,14 @@ pub fn lock_workstation() -> RpcResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ducked_level_is_bounded() {
+        assert_eq!(super::ducked_level(0.8, 0.25), 0.2);
+        assert_eq!(super::ducked_level(0.8, 2.0), 0.8); // never louder
+        assert_eq!(super::ducked_level(0.5, -1.0), 0.0);
+        assert_eq!(super::ducked_level(1.5, 1.0), 1.0);
+    }
+
     #[test]
     fn session_and_notification_state_names() {
         assert_eq!(session_kind(0x7), Some("lock"));

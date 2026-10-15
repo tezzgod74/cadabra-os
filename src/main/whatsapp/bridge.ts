@@ -3,6 +3,7 @@
 // voice notes and images. Everything outside WhatsApp (the conversation, the
 // PC, speech-to-text, the panel) comes in through RemoteDeps, so the bridge is
 // tested against a fake Agent Platform server.
+import { parseRemoteAnnouncement } from '../../shared/announce';
 import { createHash, randomInt } from 'node:crypto';
 import { RateLimiter, WaError, type WaMessage, type WhatsAppClient } from './client';
 import { isSecretLike } from '../../shared/safety';
@@ -29,6 +30,8 @@ export interface RemoteDeps {
   busyLocal(): boolean;
   /** Run one remote turn; resolves with the reply text. */
   handle(text: string, ctx: { image?: { data: string; mimeType: string }; voice?: boolean; signal: AbortSignal }): Promise<string>;
+  /** 0.9.6: speak an announcement on the PC (no AI). Returns the reply for the chat. */
+  announce?(text: string, signal: AbortSignal): Promise<string>;
   /** The remote kill: stop whatever the assistant is doing for WhatsApp. */
   stop(): void;
   /** Voice note → text (null = can't decode / transcribe). */
@@ -311,6 +314,14 @@ export class RemoteBridge {
       return;
     }
     if (!text) return;
+    // 0.9.6: "Announcement: …" is spoken on the PC as written: a local fast path
+    // (no AI), allowed while the PC is locked (it never touches the screen).
+    const ann = this.d.announce ? parseRemoteAnnouncement(text) : null;
+    if (ann != null) {
+      await this.d.client.markRead(m.id, false);
+      void this.runAnnouncement(ann);
+      return;
+    }
     if (this.d.locked()) {
       await this.reply('Your PC is locked, so I can’t do anything on it right now. Unlock it and ask again.');
       return;
@@ -325,6 +336,20 @@ export class RemoteBridge {
     }
     this.turns.take();
     void this.runTurn(m.id, text, { image, voice });
+  }
+
+  private async runAnnouncement(text: string) {
+    const ac = new AbortController();
+    this.run = ac; // "stop" from the phone (and Esc at the PC) cut it short
+    this.d.log('[whatsapp] announcement');
+    try {
+      const out = await this.d.announce!(text, ac.signal);
+      if (!ac.signal.aborted) await this.reply(out);
+    } catch (e) {
+      await this.reply(`📢 Not announced: ${(e as Error).message.slice(0, 200)}`);
+    } finally {
+      if (this.run === ac) this.run = null;
+    }
   }
 
   private async runTurn(messageId: string, text: string, ctx: { image?: { data: string; mimeType: string }; voice?: boolean }) {

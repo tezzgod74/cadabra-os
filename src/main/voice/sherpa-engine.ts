@@ -806,6 +806,66 @@ export class SherpaVoiceEngine extends EventEmitter implements VoiceEngine {
     st.end();
   }
 
+  /**
+   * 0.9.6: an announcement. Optional chime, the text repeated 1–3 times, on the
+   * chosen output device, optionally louder. The wake word is muted meanwhile so
+   * the PC can't "hear itself"; Esc / "stop" cancel it (stopSpeaking or the
+   * signal). Always spoken, even if spoken replies are off; the Windows voice
+   * speaks when the natural voice isn't installed (always on the default device).
+   */
+  async announce(text: string, o: { chime: boolean; repeat: number; boost: boolean; device: string; signal: AbortSignal }): Promise<'done' | 'stopped'> {
+    await this.ensureMicWindow();
+    const onAbort = () => this.stopSpeaking();
+    o.signal.addEventListener('abort', onAbort, { once: true });
+    const wakeWasMuted = !!this.o.settings().pushToTalk;
+    this.setWakeMuted(true);
+    // Every speech stream bumps speechGen once; any other bump is a stop (Esc, "stop", the wake word).
+    let expected = this.speechGen;
+    try {
+      await this.micRequest({ type: 'ann-config', on: true, device: o.device, boost: o.boost }, 'ann-ready', 3000);
+      if (o.chime && !o.signal.aborted) await this.micRequest({ type: 'ann-chime' }, 'ann-chime-done', 3000);
+      for (let i = 0; i < o.repeat; i++) {
+        if (i > 0) await new Promise((r) => setTimeout(r, 700));
+        if (o.signal.aborted || this.speechGen !== expected) return 'stopped';
+        await this.speakAndWait(text);
+        expected++;
+        if (o.signal.aborted || this.speechGen !== expected) return 'stopped';
+      }
+      return 'done';
+    } finally {
+      o.signal.removeEventListener('abort', onAbort);
+      this.mic?.webContents.send('mic:cmd', { type: 'ann-config', on: false });
+      this.setWakeMuted(wakeWasMuted);
+    }
+  }
+
+  /** Output devices the mic window can play to (labels). */
+  async outputDevices(): Promise<string[]> {
+    await this.ensureMicWindow();
+    const r = await this.micRequest({ type: 'list-outputs' }, 'outputs', 3000);
+    return Array.isArray(r?.outputs) ? r.outputs : [];
+  }
+
+  /** Send a command to the mic window and wait for a status of `reply` type (null on timeout). */
+  private micRequest(cmd: Record<string, unknown>, reply: string, timeoutMs: number): Promise<any> {
+    return new Promise((resolve) => {
+      const mic = this.mic;
+      if (!mic) return resolve(null);
+      const on = (e: Electron.IpcMainEvent, m: any) => {
+        if (e.sender !== mic.webContents || m?.type !== reply) return;
+        clearTimeout(t);
+        ipcMain.removeListener('mic:status', on);
+        resolve(m);
+      };
+      const t = setTimeout(() => {
+        ipcMain.removeListener('mic:status', on);
+        resolve(null);
+      }, timeoutMs);
+      ipcMain.on('mic:status', on);
+      mic.webContents.send('mic:cmd', cmd);
+    });
+  }
+
   /** British or American pronunciation rules for a voice. */
   dialectOf(voiceId: string): 'british' | 'american' {
     return voiceById(voiceId).accent;

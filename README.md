@@ -6,7 +6,7 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
-> **Status: 0.9.4, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
+> **Status: 0.9.6, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
 
 ## Features
 
@@ -44,7 +44,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 ## Install
 
-1. Download `CadabraOS-Setup-0.9.4.exe` from the releases page, or [build it yourself](#build-from-source).
+1. Download `CadabraOS-Setup-0.9.6.exe` from the releases page, or [build it yourself](#build-from-source).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen warns: choose **More info → Run anyway**. It installs per user, with no admin prompt.
 3. A short setup opens in the panel: try the shortcut, choose what to be called, connect your AI (with a live test), and optionally turn on voice. You can reopen it from the tray (**Set up Cadabra…**).
 
@@ -58,7 +58,7 @@ You need Node.js 24 (see `.nvmrc`), Rust stable (MSVC) and the Visual Studio C++
 npm ci
 npm run build:native   # the Rust helper
 npm start              # build the JS and run the app
-npm run dist           # → dist/CadabraOS-Setup-0.9.4.exe (NSIS, per-user)
+npm run dist           # → dist/CadabraOS-Setup-0.9.6.exe (NSIS, per-user)
 ```
 
 Handy dev modes: `npm run demo` (visual preview stage with every state), `npm run demo:live` (real windows, offline backend, no hooks) and `npm run screenshots`. [CONTRIBUTING.md](CONTRIBUTING.md) has the full command list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how it fits together.
@@ -138,6 +138,27 @@ The full model, including the terminal allowlist and the web guard, is in [docs/
 - **Choose your assistant:** Cadabra or one of the curated names (Vesper, Indigo, Octavia, Rosalind, Beatrix, Bramwell, Leopold, Lysander), or your own. The name is the wake word.
 - **Voices:** natural British and American voices run locally (Kokoro). Optional "Southern" cloud voices use your own OpenAI key and are disclosed as AI-generated.
 - Listen to samples in [docs/voice-samples/](docs/voice-samples/).
+
+## Announcements
+
+Say **"Cadabra, make an announcement: dinner is ready"** (or "announce that…"), or send **"Announcement: dinner is ready"** (or "Announce: …", or start with 📢) to your WhatsApp agent, and the PC says it out loud, word for word. The text never goes to the AI.
+
+- It works **while the PC is locked** (it never touches the screen) and even when spoken replies are off. Without the natural voice installed, the Windows voice speaks.
+- **Settings → Announcements:** a soft chime first (on by default), say it once to three times, louder playback, which speaker to play it on (for example a speaker system; this needs the natural voice), lower other apps' sound while announcing (on by default; restored afterwards, even after a crash), and whether to respect quiet hours (off by default: announcements are deliberate).
+- If the PC's sound is muted, nothing is said and WhatsApp tells you so. Esc at the PC, or "stop" in WhatsApp, cuts it short.
+- Only your paired WhatsApp chat can announce. Announcements are capped at 500 characters and 6 a minute, and Cadabra logs that one happened, never what it said.
+- Your AI can announce too (for example from a skill: "remind everyone dinner is ready"). If you didn't ask for an announcement in that request, it shows you the text and asks first.
+
+## Skills: your own routines
+
+A **skill** is a short note, in plain English, that teaches Cadabra how you like something done, like "my morning briefing" or "set up for work". Say one of its example phrases and Cadabra follows your steps, by voice, in the panel or from WhatsApp.
+
+- **Your skills** live in `Documents\Cadabra\Skills`, created on first run with a README and a template. Updates and uninstalls never touch this folder.
+- **Built-in examples** (`morning-briefing`, `work-setup`, `quick-note`) and the template ship in the install folder (`resources\skills`). Skills added there also load, but updates may remove them. If two skills share a name, yours wins.
+- **Make one:** Settings → Skills → **New skill from template** (or say *"create a new skill called plan my trip"*), fill it in, save, and **turn it on**. New skills always start switched off.
+- **Safety:** skills are instructions only. Nothing in a skill folder is ever run, and a skill can't change your autonomy level, permissions or safety checks.
+
+The step-by-step guide, with tips and troubleshooting, is in [docs/SKILLS.md](docs/SKILLS.md).
 
 ## Chat from your phone (WhatsApp)
 

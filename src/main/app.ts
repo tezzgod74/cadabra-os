@@ -29,10 +29,13 @@ import { runningKvmTools } from './kvm';
 import { parseWeatherQuery, WeatherService, type WeatherDay } from './weather';
 import { HEALTH_TEXT, healthIsProblem, type VoiceHealth } from './voice/health';
 import { personaContext, voiceDialect } from '../shared/persona';
-import { Greeter } from './greeter';
+import { Greeter, inQuietHours } from './greeter';
+import { Announcer, announceReply } from './announce';
+import { parseLocalAnnouncement } from '../shared/announce';
 import { WhatsAppClient } from './whatsapp/client';
 import { RemoteBridge } from './whatsapp/bridge';
-import { launcherDepsFor, sessionHelperFor, toolHelperFor } from './composition';
+import { launcherDepsFor, sessionHelperFor, skillDirs, skillRegistryFor, toolHelperFor } from './composition';
+import type { SkillRegistry } from './skills';
 import { acceptGreetingReply, followUpLooksLikeMedia, MediaWatch } from './media-watch';
 import { EmailService } from './email/service';
 import { browserName, openInBrowser } from './open-url';
@@ -296,6 +299,7 @@ export class CadabraApp {
       locked: () => this.sessionLocked,
       busyLocal: () => this.conv.busy,
       handle: (text, ctx) => this.handleRemote(text, ctx),
+      announce: async (text, signal) => announceReply(await this.announcer.announce(text, 'whatsapp', signal)),
       stop: () => {
         // Round 12.6 (F1): a remote "stop" also cancels in-progress typing / clicks, like Esc.
         void this.helper?.cancelInput(this.tools.runOf('whatsapp')?.id ?? this.helper.inputEpoch).catch(() => undefined);
@@ -305,6 +309,23 @@ export class CadabraApp {
       transcribe: async (bytes) => (this.voice instanceof SherpaVoiceEngine ? this.voice.transcribeAudio(bytes) : null),
     });
     this.tools.remote = { sendScreenshot: (caption) => this.sendScreenshotToWhatsApp(caption) };
+    // 0.9.5: skills (built-in + the user's own folder), hot-reloaded, offered to every backend.
+    this.skills = skillRegistryFor({
+      dirs: this.skillDirs(),
+      settings: this.settings,
+      toolNames: () => this.tools.definitions().map((d) => d.name),
+      log: (l) => console.log(l),
+    });
+    try {
+      this.skills.ensureUserFolder();
+    } catch (e) {
+      console.warn(`[skills] couldn't create the skills folder: ${(e as Error).message}`);
+    }
+    this.skills.reload();
+    this.skills.watch();
+    this.skills.onChange(() => sendPanel(this.panel, { type: 'skills-changed' }));
+    this.tools.skills = this.skills;
+    this.tools.announcer = this.announcer;
     const models = resourcePath('models');
     this.voice = fs.existsSync(path.join(models, 'kws'))
       ? new SherpaVoiceEngine({ modelsDir: models, userData: app.getPath('userData'), settings: () => this.settings.get().voice, asrDirOverride: process.env.CADABRA_ASR_DIR, openaiKey: () => this.settings.getSecret('openaiApiKey') })
@@ -434,6 +455,7 @@ export class CadabraApp {
       this.helper.on('ready', () => {
         this.helperState = 'ok';
         void this.applyHelperState();
+        void this.restoreDuckedAudio();
       });
       this.helper.on('restarting', () => {
         this.helperState = 'restarting';
@@ -839,6 +861,12 @@ export class CadabraApp {
   }
 
   private onEscape(): void {
+    // 0.9.6: Esc cuts an announcement short.
+    if (this.announcer.busy) {
+      this.announcer.stop();
+      if (this.voice instanceof SherpaVoiceEngine) this.voice.stopSpeaking();
+      return;
+    }
     if (this.voice instanceof SherpaVoiceEngine) {
       this.voice.stopSpeaking();
       if (this.voiceState === 'listening') {
@@ -1043,7 +1071,7 @@ export class CadabraApp {
         return {
           run,
           request: {
-            contextText: this.contextText(conv, voiceTurn, run.nonce!),
+            contextText: this.contextText(conv, voiceTurn, run.nonce!) + this.skillContext(text, run.nonce!),
             image: shot ? { data: shot.data, mimeType: 'image/png' as const, width: shot.width, height: shot.height } : undefined,
           },
         };
@@ -1053,6 +1081,9 @@ export class CadabraApp {
       rememberLocation: (city) => this.rememberLocation(city),
       localLaunch: (text) => this.tryLocalLaunch(text),
       localIntent: async (text) => {
+        // 0.9.6: announcements are spoken verbatim, never sent to the AI.
+        const ann = await this.localAnnouncement(text);
+        if (ann != null) return ann;
         const intent = parseIntent(text, { models: (await this.providerInfo(this.settings.get().provider, false)).models, wakeWord: this.settings.get().voice.wakeWord });
         return intent ? this.applyIntent(intent) : null;
       },
@@ -1266,6 +1297,103 @@ export class CadabraApp {
   });
   /** Only for the on-screen pill text (not a gate or routing flag). */
   private remotePillShown = false;
+  skills!: SkillRegistry;
+
+  // ---------------------------------------------------------- announcements (0.9.6)
+  readonly announcer = new Announcer({
+    settings: () => this.settings.get().announcements,
+    muted: async () => (this.helper ? ((await this.helper.presence().catch(() => null))?.speakerMuted ?? null) : null),
+    inQuietHours: () => {
+      const g = this.settings.get().greetings;
+      return inQuietHours(new Date(), g.quietStart, g.quietEnd);
+    },
+    speak: async (text, o) => (this.voice instanceof SherpaVoiceEngine ? this.voice.announce(text, o) : 'unavailable'),
+    duck: async () => this.duckOtherAudio(),
+    log: (l) => console.log(l),
+  });
+
+  private duckFile() {
+    return path.join(app.getPath('userData'), 'ducked-audio.json');
+  }
+
+  /**
+   * Lower other apps while announcing. The helper restores them when Cadabra
+   * goes away; a copy on disk restores them on the next start if both crashed.
+   */
+  private async duckOtherAudio(): Promise<() => Promise<void>> {
+    const h = this.helper;
+    if (!h) return async () => undefined;
+    const r = await h.duckAudio(app.getAppMetrics().map((m) => m.pid), 0.25).catch(() => null);
+    const list = r?.ducked ?? [];
+    if (list.length) fs.writeFileSync(this.duckFile(), JSON.stringify(list));
+    return async () => {
+      if (list.length) await h.unduckAudio(list).catch(() => undefined);
+      fs.rm(this.duckFile(), { force: true }, () => undefined);
+    };
+  }
+
+  /** On helper start: undo a ducking left over from a crash. */
+  private async restoreDuckedAudio(): Promise<void> {
+    let list: { id: string; volume: number }[];
+    try {
+      list = JSON.parse(fs.readFileSync(this.duckFile(), 'utf8'));
+    } catch {
+      return;
+    }
+    if (Array.isArray(list) && list.length) {
+      const r = await this.helper?.unduckAudio(list.filter((x) => typeof x?.id === 'string' && typeof x?.volume === 'number')).catch(() => null);
+      console.log(`[announce] restored ${r?.restored ?? 0} app volume(s) left lowered by an interrupted announcement`);
+    }
+    fs.rm(this.duckFile(), { force: true }, () => undefined);
+  }
+
+  /** "Cadabra, make an announcement: …" at the PC (voice or typed). */
+  private async localAnnouncement(text: string): Promise<string | null> {
+    const wake = this.settings.get().voice.wakeWord;
+    const said = parseLocalAnnouncement(text, [assistantName(wake), wake, 'cadabra']);
+    if (said == null) return null;
+    const r = await this.announcer.announce(said, 'pc');
+    return r.ok ? `Announced${r.truncated ? ' (the first 500 characters)' : ''}.` : (r.reason ?? 'Not announced.');
+  }
+
+  private skillDirs() {
+    return skillDirs({ resources: resourcePath(), documents: app.getPath('documents'), userData: app.getPath('userData'), isolated: !!(this.opts.demoLive || this.opts.selftest || this.opts.e2e) });
+  }
+
+  /** "New skill from template": copy the template into the user's folder and open it in Notepad. */
+  newSkill(name: string): { ok: boolean; error?: string; name?: string } {
+    if (!this.skills) return { ok: false, error: 'Skills aren’t available.' };
+    const r = this.skills.createFromTemplate(name);
+    if (!r.ok) return r;
+    spawn('notepad.exe', [r.file], { detached: true, stdio: 'ignore' }).unref();
+    return { ok: true, name: r.name };
+  }
+
+  /** Open Settings → Skills (tray "Skills…", "create a new skill called X"). */
+  openSkills(newName?: string) {
+    void this.showPanelCentered().then(() => sendPanel(this.panel, { type: 'view', view: 'settings', focus: 'skills', newSkill: newName }));
+  }
+
+  /**
+   * 0.9.5: skill context for one turn: the enabled skills' names + descriptions,
+   * and, when the request closely matches a skill's examples (local fast path),
+   * that skill's instructions preloaded. Never added to run.prompt.
+   */
+  private skillContext(text: string, nonce: string): string {
+    if (!this.skills) return '';
+    const parts: string[] = [];
+    const sum = this.skills.summary();
+    if (sum) parts.push(sum);
+    const hit = this.skills.match(text, this.settings.get().voice.wakeWord);
+    if (hit) {
+      const ins = this.skills.instructions(hit.name, nonce);
+      if (ins) {
+        console.log(`[skills] fast path: ${hit.name}`);
+        parts.push(`This request matches the owner's skill "${hit.name}"; it's loaded below, so follow it (no need to call use_skill).\n${ins}`);
+      }
+    }
+    return parts.length ? ` ${parts.join('\n')}` : '';
+  }
 
   /** Which channel a tool effect belongs to: the WhatsApp run's signal, else the active run. */
   private fxChannel(signal?: AbortSignal): ActivityChannel {
@@ -1507,6 +1635,9 @@ export class CadabraApp {
         return i.enabled ? 'Okay, I’ll say hello when you come back.' : 'Okay, no more greetings.';
       case 'lock-pc':
         return this.lockPc(i.force);
+      case 'new-skill':
+        this.openSkills(i.name || undefined);
+        return i.name ? `Opening Settings → Skills to create “${i.name}”.` : 'Opening Settings → Skills: give your new skill a name there.';
     }
   }
 
@@ -1535,7 +1666,7 @@ export class CadabraApp {
         return {
           run,
           request: {
-            contextText: `${this.contextText(conv, false, nonce)} REMOTE turn: the owner is chatting from WhatsApp on their phone, away from the PC. Short plain-text replies.`,
+            contextText: `${this.contextText(conv, false, nonce)} REMOTE turn: the owner is chatting from WhatsApp on their phone, away from the PC. Short plain-text replies.${this.skillContext(text, nonce)}`,
             image: image ? { data: image.data, mimeType: image.mimeType as 'image/png', width: 0, height: 0 } : undefined,
           },
         };
@@ -2298,6 +2429,32 @@ export class CadabraApp {
     });
     // ---- Round 8: Email (read-only Gmail). Secrets go to safeStorage; nothing is logged but the outcome. ----
     ipcMain.handle('email:status', (e) => (fromPanel(e) ? this.emailStatus() : null));
+    // 0.9.6: Settings → Announcements.
+    ipcMain.handle('announce:outputs', async (e) => (fromPanel(e) && this.voice instanceof SherpaVoiceEngine ? this.voice.outputDevices().catch(() => []) : []));
+    ipcMain.handle('announce:test', async (e) => {
+      if (!fromPanel(e)) return null;
+      const r = await this.announcer.announce('This is a test announcement from Cadabra.', 'pc');
+      return { ok: r.ok, reason: r.reason };
+    });
+    // 0.9.5: Settings → Skills.
+    ipcMain.handle('skills:list', (e) => (fromPanel(e) && this.skills ? { skills: this.skills.list(), userDir: this.skillDirs().userDir, builtinDir: this.skillDirs().builtinDir } : null));
+    ipcMain.handle('skills:set-enabled', (e, id: string, on: boolean) => (fromPanel(e) && this.skills ? this.skills.setEnabled(String(id), !!on) : false));
+    ipcMain.handle('skills:view', (e, id: string) => (fromPanel(e) && this.skills ? this.skills.view(String(id)) : null));
+    ipcMain.handle('skills:open-folder', (e, which: string) => {
+      if (!fromPanel(e) || !this.skills) return false;
+      const dirs = this.skillDirs();
+      // "How to make a skill" opens the README.txt in the user's skills folder.
+      const target = which === 'guide' ? path.join(dirs.userDir, 'README.txt') : which === 'builtin' ? dirs.builtinDir : dirs.userDir;
+      if (which === 'guide' || which === 'user') this.skills.ensureUserFolder();
+      void shell.openPath(target);
+      return true;
+    });
+    ipcMain.handle('skills:new', (e, name: string) => (fromPanel(e) ? this.newSkill(String(name)) : null));
+    ipcMain.handle('skills:reload', (e) => {
+      if (!fromPanel(e) || !this.skills) return null;
+      this.skills.reload();
+      return this.skills.list();
+    });
     ipcMain.handle('email:set-bodies', (e, on: boolean) => {
       if (!fromPanel(e)) return null;
       this.settings.update({ email: { ...this.settings.get().email, allowBodies: !!on } });
@@ -2676,6 +2833,7 @@ export class CadabraApp {
         },
       },
       { label: 'Settings…', click: () => this.openSettings() },
+      { label: 'Skills…', click: () => this.openSkills() },
       { label: 'Set up Cadabra…', click: () => void this.openOnboarding() },
       { label: 'Export diagnostics…', click: () => void this.exportDiagnostics() },
       { type: 'separator' },

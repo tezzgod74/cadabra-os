@@ -1,0 +1,5 @@
+# Your work apps and sites, one per line. Edit me!
+app: Outlook
+app: Microsoft Teams
+site: https://calendar.google.com
+site: https://www.bbc.co.uk/news

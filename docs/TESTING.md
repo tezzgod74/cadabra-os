@@ -93,6 +93,15 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] Typing *cmd* + Enter into the Explorer address bar shows a card. In VS Code, typing in the editor doesn't ask, but typing in the integrated terminal does.
 - [ ] On a sign-in or checkout page, clicking *Continue* or *Sign in* shows a card without an "Always allow" option.
 
+### 8a. Announcements
+
+- [ ] *"Cadabra, make an announcement: dinner is ready"*: a soft chime, then exactly that text. *"announce that the car is here"* works too.
+- [ ] From WhatsApp: **Announcement: Please take out the trash** is spoken word for word and the chat says *"📢 Announced on your PC."*. Try it with the PC locked: it still plays.
+- [ ] Mute the PC's sound and send one: nothing plays, and the chat says the sound is muted.
+- [ ] With music playing and *Lower other sounds* on: the music dips during the announcement and comes back after.
+- [ ] Settings → Announcements → *Play announcements on*: pick another speaker and press **Test announcement**.
+- [ ] Press Esc during a long announcement, or send "stop" from WhatsApp: it stops at once.
+
 ### 9. Conversations, web and weather
 
 - [ ] Say *"Okay, thank you"*, *"perfect"* or *"that's all"* after an answer: the panel fades at once and it stops listening. *"Thanks, and also open the calculator"* must **not** close.

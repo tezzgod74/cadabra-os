@@ -6,7 +6,7 @@ import type { DenyRule, SafetySettings } from './types';
 import { checkCommand } from './terminal';
 import { normalizeSpoken } from './speech';
 
-export type ActionKind = 'click' | 'type_text' | 'press_keys' | 'scroll' | 'invoke' | 'set_value' | 'launch' | 'terminal' | 'open_url' | 'lock_pc' | 'web_fetch' | 'web_search' | 'send_screen';
+export type ActionKind = 'click' | 'type_text' | 'press_keys' | 'scroll' | 'invoke' | 'set_value' | 'launch' | 'terminal' | 'open_url' | 'lock_pc' | 'web_fetch' | 'web_search' | 'send_screen' | 'announce';
 
 export interface ActionRequest {
   kind: ActionKind;
@@ -364,6 +364,7 @@ export function reasonId(reason: string): string {
   if (/looks like a file name/.test(r)) return 'url-file';
   if (/you didn.t name this site|site you didn.t name|more in its address than you asked/.test(r) && !/unlabeled/.test(r)) return 'url-unnamed';
   if (/you didn.t ask to lock/.test(r)) return 'lock-unasked';
+  if (/you didn.t ask for an announcement/.test(r)) return 'announce-unasked';
   if (/using the microphone/.test(r)) return 'lock-call';
   if (/didn.t come from you or from this search|includes text from your screen|looks private|web access is off|stopped/.test(r)) return 'web-guard';
   if (/local network|this pc|bare ip|special port|user name or password|only https|only http|valid web address/.test(r)) return 'url-local';
@@ -609,6 +610,8 @@ export function describeAction(req: ActionRequest, reasons: string[]): { title: 
       return { title: 'Open this web page?', detail: '', mono: req.text, risk: why || 'In your browser' };
     case 'lock_pc':
       return { title: 'Lock this PC now?', detail: '', risk: why };
+    case 'announce':
+      return { title: 'Announce this out loud on the PC?', detail: '', mono: req.text, risk: why || 'Spoken through the PC’s speakers' };
     case 'send_screen':
       return { title: 'Send a picture of your screen to WhatsApp?', detail: '', risk: why || 'It leaves your PC (Meta’s agent service keeps media up to 30 days)' };
     case 'web_fetch':

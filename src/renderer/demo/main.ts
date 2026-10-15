@@ -360,6 +360,28 @@ async function show(state: string, opts: { reducedMotion?: boolean } = {}) {
       freezeAll(0);
       await sleep(60);
       break;
+    case 'settings-announcements':
+      summon(true);
+      await sleep(300);
+      toPanel({ type: '__settings' });
+      await sleep(600);
+      toPanel({ type: '__scroll', selector: '#s-ann-group' });
+      await sleep(250);
+      freezeAll(0);
+      await sleep(60);
+      break;
+    case 'settings-skills':
+      summon(true);
+      await sleep(300);
+      toPanel({ type: '__settings' });
+      await sleep(500);
+      toPanel({ type: '__click', selector: '.sk-row[data-id="builtin:morning-briefing"] .sk-view summary' });
+      await sleep(250);
+      toPanel({ type: '__scroll', selector: '#s-skills-group' });
+      await sleep(250);
+      freezeAll(0);
+      await sleep(60);
+      break;
     case 'voice-status-ok':
     case 'voice-status-reconnecting':
     case 'voice-status-blocked': {
@@ -449,7 +471,7 @@ async function show(state: string, opts: { reducedMotion?: boolean } = {}) {
 }
 
 // Keep in sync with DEMO_STATES in src/main/demo-stage.ts.
-const DEMO_STATE_NAMES = ['summon-ripple', 'window-scan', 'panel-idle', 'panel-thinking', 'panel-streaming', 'panel-answer', 'highlight-rings', 'ghost-moving', 'ghost-click', 'confirm', 'model-picker', 'voice-listening', 'settings', 'dismiss', 'app-choices', 'app-launch', 'shortcut-recorder', 'onboarding-welcome', 'onboarding-name', 'onboarding-backend', 'onboarding-voice', 'onboarding-done', 'settings-accounts', 'sign-in-gemini', 'setup-card', 'acting-hud', 'onboarding-claude', 'claude-install-consent', 'claude-signed-in', 'settings-voice', 'onboarding-assistant', 'voice-status-ok', 'voice-status-reconnecting', 'voice-status-blocked', 'voice-ptt-not-working', 'settings-web', 'voice-status-headset', 'settings-email', 'settings-greetings', 'claude-install-progress', 'claude-install-manual', 'claude-connect', 'claude-test-ok'];
+const DEMO_STATE_NAMES = ['summon-ripple', 'window-scan', 'panel-idle', 'panel-thinking', 'panel-streaming', 'panel-answer', 'highlight-rings', 'ghost-moving', 'ghost-click', 'confirm', 'model-picker', 'voice-listening', 'settings', 'dismiss', 'app-choices', 'app-launch', 'shortcut-recorder', 'onboarding-welcome', 'onboarding-name', 'onboarding-backend', 'onboarding-voice', 'onboarding-done', 'settings-accounts', 'sign-in-gemini', 'setup-card', 'acting-hud', 'onboarding-claude', 'claude-install-consent', 'claude-signed-in', 'settings-voice', 'onboarding-assistant', 'voice-status-ok', 'voice-status-reconnecting', 'voice-status-blocked', 'voice-ptt-not-working', 'settings-web', 'voice-status-headset', 'settings-email', 'settings-greetings', 'claude-install-progress', 'claude-install-manual', 'claude-connect', 'claude-test-ok', 'settings-skills', 'settings-announcements'];
 (window as any).demo = { show, states: DEMO_STATE_NAMES };
 (window as any).demoReady = Promise.resolve();
 

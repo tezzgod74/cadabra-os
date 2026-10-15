@@ -1,3 +1,4 @@
+import { DEFAULT_ANNOUNCEMENTS, mergeAnnouncements } from './announce';
 import { DEFAULT_SAFETY } from './safety';
 import { DEFAULT_BINDING, sanitizeBinding } from './binding';
 import type { ProviderId, Settings } from './types';
@@ -31,6 +32,8 @@ export const DEFAULT_SETTINGS: Settings = {
   claudeRoute: 'api-key',
   webAccess: true,
   claudeApiWeb: true,
+  skills: { enabled: {} },
+  announcements: { ...DEFAULT_ANNOUNCEMENTS },
   location: '',
   micNotCall: [],
   greetings: { enabled: true, awayMinutes: 20, quietStart: '', quietEnd: '', recent: [] },
@@ -60,6 +63,10 @@ export function mergeSettings(raw: unknown, defaults: Settings = DEFAULT_SETTING
   if (typeof raw.displayName === 'string') out.displayName = raw.displayName.trim().slice(0, 40);
   if (typeof raw.webAccess === 'boolean') out.webAccess = raw.webAccess;
   if (typeof raw.claudeApiWeb === 'boolean') out.claudeApiWeb = raw.claudeApiWeb;
+  if (isObj(raw.announcements)) out.announcements = mergeAnnouncements(raw.announcements);
+  if (isObj(raw.skills) && isObj(raw.skills.enabled)) {
+    for (const [k, v] of Object.entries(raw.skills.enabled).slice(0, 500)) if (/^(builtin|install|user):[a-z0-9][a-z0-9-]{0,63}$/.test(k) && typeof v === 'boolean') out.skills.enabled[k] = v;
+  }
   if (Array.isArray(raw.micNotCall)) out.micNotCall = raw.micNotCall.filter((x): x is string => typeof x === 'string' && /^[\w .()+-]{1,120}$/i.test(x)).map((x) => x.toLowerCase()).slice(-30);
   if (isObj(raw.greetings)) {
     const g = raw.greetings;
@@ -156,7 +163,7 @@ export function applyPatch(cur: Settings, patch: Partial<Settings>): Settings {
 export function sanitizeRendererPatch(raw: unknown): Partial<Settings> {
   if (!isObj(raw)) return {};
   const out: Record<string, unknown> = {};
-  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'claudeApiWeb', 'location', 'greetings'] as const) {
+  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'claudeApiWeb', 'location', 'greetings', 'announcements'] as const) {
     if (k in raw) out[k] = raw[k];
   }
   // Only the autonomy level is a renderer preference (grants have their own IPC). A partial

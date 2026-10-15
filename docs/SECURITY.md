@@ -64,6 +64,25 @@ The backends get no raw shell. `run_in_terminal` opens a visible terminal and ru
 - **Email:** Gmail access is read-only (`gmail.readonly`, or IMAP opened with EXAMINE). Links are stripped. After an email has been read in a run, every action in that run needs a confirm. Disconnect revokes the token at Google.
 - **WhatsApp:** one paired owner chat only; other senders are ignored. Risky actions are confirmed in the chat with one-time numeric codes ("yes" alone doesn't count). Messages older than 10 minutes aren't acted on. Media is downloaded only from the pinned media host, redirects are refused, and uploaded screenshots are deleted after sending. A pill on the PC shows when a remote request is running, and Esc at the PC or "stop" in the chat cancels it. WhatsApp agent chats are **not end-to-end encrypted**; the setup screen says so.
 
+## Announcements
+
+- The WhatsApp prefix ("Announcement:", "Announce:", 📢) and the PC phrasing ("make an announcement: …") are a local fast path: the text is spoken verbatim and never sent to the AI. Only the paired owner chat can trigger one (the existing owner lock).
+- Allowed while the PC is locked, because it doesn't touch the screen or input. Muted speakers → not announced, and the sender is told.
+- Limits: 500 characters (the sender is told if it was shortened), 6 a minute. Logs record that an announcement happened, never its text.
+- The `announce` tool (for the AI, for example via a skill) goes through the gate: no card at the default level when the user asked for an announcement in that request; a card with the exact text otherwise, and always at "ask before every action".
+- Ducking other apps: the helper lowers other apps' audio sessions and restores them afterwards. It also restores them when the app goes away (helper stdin closed), and the app keeps a copy of the saved volumes on disk to restore on the next start after a crash.
+
+## Skills
+
+Skills (docs/SKILLS.md) are owner-authored instructions stored as text files.
+
+- **Trust model:** a skill's text is treated as the owner's own instructions, so the model follows it like a typed request. It is still delivered fenced (a per-request nonce tag, escaped, so it can't close the fence or forge Cadabra's tags) and labelled as owner-authored. It is **never** added to the run's prompt, which the gate uses for "the user's own words" checks.
+- **No effect on safety:** skills can't change the autonomy level, grants, safety settings or hard blocks; no tool exists for that. Every action a skill leads to goes through the gate like any other. Tests check that "never ask for confirmation" in a skill changes nothing.
+- **Disabled until enabled:** skills found on disk start disabled, except the shipped examples. The user turns each one on in Settings → Skills after reading it. Enable flags are stored in settings and can't be set by the generic renderer settings patch.
+- **Instructions only:** nothing in a skill folder is executed. Only `.md`, `.txt` and `.csv` files are read; other files (scripts, programs) are ignored. SKILL.md is capped at 32 KB, extra files at 16 KB each (8 files, 48 KB in total), and `use_skill` output at 64 KB. Binary or non-UTF-8 files are rejected.
+- **Logs:** only skill names are logged, never contents.
+- **Locations:** user skills live in `Documents\Cadabra\Skills`; anything else that can write there could add a skill, which is why new skills start disabled.
+
 ## Known limits
 
 - The confirm card is only as good as the target detection. Apps with poor UI Automation support can hide what a field really is; Cadabra then falls back to the window and process.

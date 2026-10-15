@@ -4,6 +4,19 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.6 — Announcements
+
+- **Announcements:** "Cadabra, make an announcement: dinner is ready" (or "announce that…") at the PC, or "Announcement: …" / "Announce: …" / 📢 from WhatsApp, says the text out loud on the PC, word for word, without going to the AI. Works while the PC is locked and when spoken replies are off (the Windows voice speaks if the natural voice isn't installed). WhatsApp replies "📢 Announced on your PC" or says why not (for example, muted sound).
+- **Settings → Announcements:** chime first (on), say it 1–3 times, louder playback, which speaker to play on (natural voice), lower other apps' sound while announcing (on; restored afterwards, even after a crash), respect quiet hours (off), and a Test button.
+- **Safety:** only the paired WhatsApp owner; 500 characters and 6 per minute at most; the wake word is muted while announcing; Esc or "stop" cuts it short; logs never contain the text. The AI's new `announce` tool asks first unless the user asked for an announcement in that request.
+
+## 0.9.5 — Skills
+
+- **Skills:** teach Cadabra your own routines in plain English. A skill is a folder with a `SKILL.md` (name, when to use it, example phrases, optional voice style and expected tools) plus optional small text files. Say an example phrase and Cadabra follows your steps, by voice, in the panel or from WhatsApp. Every AI backend gets `list_skills` and `use_skill`; the context lists only names and descriptions.
+- **Where:** your skills live in `Documents\Cadabra\Skills` (created on first run with a README and the template; never touched by updates). Built-in examples (`morning-briefing`, `work-setup`, `quick-note`) and a fully commented template ship in the install folder (`resources\skills`). Your skill wins over a built-in one with the same name. Folders are watched, so changes apply without a restart.
+- **Settings → Skills** (also tray → Skills…, or "create a new skill called …"): turn skills on or off, see problems in plain words, read a skill's instructions, open your skills folder, create a new skill from the template (opens in Notepad), reload.
+- **Safety:** new skills found on disk start switched off. Skills are instructions only: nothing is ever run, only text files are read, sizes are capped, and a skill can't change autonomy, permissions or safety checks (every action still goes through the gate). Only skill names are logged. Guide: docs/SKILLS.md; trust model: docs/SECURITY.md.
+
 ## 0.9.4
 
 - **Fixed: a stale status line in the PC panel after a WhatsApp request.** Progress captions from a WhatsApp run (for example "Checking the note was saved") were written into the PC panel's status/HUD and never cleared, so every later summon showed them. Captions are now per channel: WhatsApp runs update only the on-screen WhatsApp pill, PC runs only the panel. Every run end clears its own caption (even if the panel was hidden when it was set), an idle summon starts with no status, and any status or caption from an older run is ignored.

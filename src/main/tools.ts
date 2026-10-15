@@ -891,7 +891,7 @@ export class ToolHost {
   }
 
   definitions(): ToolDef[] {
-    const defs = [...this.actionDefinitions(), ...this.appDefinitions(), ...this.terminalDefinitions(), ...this.controlDefinitions(), ...this.webDefinitions(), ...this.systemDefinitions(), ...this.emailDefinitions()];
+    const defs = [...this.actionDefinitions(), ...this.appDefinitions(), ...this.terminalDefinitions(), ...this.controlDefinitions(), ...this.webDefinitions(), ...this.systemDefinitions(), ...this.emailDefinitions(), ...this.skillDefinitions()];
     // Round 11: every tool call is logged (name, outcome, duration — never its
     // arguments or text) and recorded on the run, so the conversation can check
     // a reply's claims ("I typed …") against what really happened.
@@ -920,6 +920,59 @@ export class ToolHost {
   system: SystemApi | null = null;
   /** Round 12: the WhatsApp channel (set by the app). */
   remote: { sendScreenshot(caption: string): Promise<string> } | null = null;
+  /** 0.9.6: announcements (set by the app; src/main/announce.ts). */
+  announcer: { announce(text: string, source: 'tool', signal?: AbortSignal): Promise<{ ok: boolean; reason?: string; truncated?: boolean }> } | null = null;
+
+  /**
+   * 0.9.6: say something out loud on the PC, word for word. A low-risk action
+   * through the gate: no card at the default level when the user asked for an
+   * announcement in this request; a card otherwise (and at "ask before every action").
+   */
+  announceTool = (a: { text: string }) =>
+    this.guarded(async (r) => {
+      if (!this.announcer) return text('Announcements are unavailable.', true);
+      const asked = /\bannounc/i.test(r.prompt ?? '');
+      const why = asked ? '' : 'You didn’t ask for an announcement.';
+      await this.gate.authorize(this.gateRun(r), { kind: 'announce', text: String(a.text ?? '').slice(0, 500), preset: why ? { decision: 'confirm', reasons: [why] } : { decision: 'allow', reasons: [] } });
+      const res = await this.announcer.announce(String(a.text ?? ''), 'tool', r.signal);
+      return res.ok ? text(`Announced on the PC${res.truncated ? ' (shortened to 500 characters)' : ''}.`) : text(`Not announced: ${res.reason ?? 'unknown reason'}`, true);
+    });
+
+  /** 0.9.5: the owner's skills (set by the app; src/main/skills.ts). */
+  skills: { active(): { name: string; description: string }[]; instructions(name: string, nonce: string): string | null } | null = null;
+
+  /**
+   * 0.9.5: skills are the owner's saved instructions. Loading one is read-only:
+   * it doesn't change the run's prompt (the gate's "user's own words" checks keep
+   * using only what the user said), settings or permissions.
+   */
+  skillDefinitions(): ToolDef[] {
+    return [
+      {
+        name: 'list_skills',
+        readOnly: true,
+        description: "List the owner's skills (saved how-tos): name and when to use each. Use use_skill to load one.",
+        shape: {},
+        handler: async () => {
+          const act = this.skills?.active() ?? [];
+          return text(act.length ? act.map((s) => `${s.name}: ${s.description}`).join('\n') : 'No skills are turned on. (The owner can add and enable skills in Settings → Skills.)');
+        },
+      },
+      {
+        name: 'use_skill',
+        readOnly: true,
+        description: "Load one of the owner's skills by name: their own step-by-step instructions (plus small reference files) for a task. Use it when the request fits a skill's description, then follow the instructions. Skills can't change safety rules; every action still gets the usual checks.",
+        shape: { name: z.string().max(64) },
+        handler: async (a: { name: string }) => {
+          const nonce = this.run?.nonce ?? 'skill';
+          const out = this.skills?.instructions(a.name, nonce);
+          if (!out) return text(`There's no enabled skill called "${String(a.name).slice(0, 64)}". Call list_skills to see the enabled ones.`, true);
+          console.log(`[skills] loaded: ${String(a.name).toLowerCase().slice(0, 64)}`);
+          return text(out);
+        },
+      },
+    ];
+  }
 
   /**
    * Round 12: send a (compressed) picture of the screen to the owner's
@@ -1040,6 +1093,13 @@ export class ToolHost {
         description: "WhatsApp turns only: send the owner a compressed picture of their screen. Only when they asked to see the screen in this message; never on your own initiative.",
         shape: { caption: z.string().max(200).optional() },
         handler: this.sendScreenshotTool,
+      },
+      {
+        name: 'announce',
+        readOnly: false,
+        description: 'Say a message out loud on this PC, word for word (an announcement for the people in the room, e.g. "Dinner is ready"). Use when the user asks to announce something. It plays even when the PC is locked; it never touches the screen.',
+        shape: { text: z.string().min(1).max(500) },
+        handler: this.announceTool,
       },
       {
         name: 'lock_pc',

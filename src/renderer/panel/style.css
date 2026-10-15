@@ -2073,3 +2073,76 @@ kbd.cap {
 .cl-web small {
   display: block;
 }
+
+/* ------------------------------------------------- 0.9.5 Settings → Skills -- */
+.sk-name {
+  font-weight: 600;
+}
+.sk-src {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 7px;
+  border-radius: 99px;
+  font-size: 10.5px;
+  color: var(--ink-2);
+  background: rgba(255, 255, 255, 0.08);
+}
+.sk-src.sk-user {
+  color: #ffe2a8;
+  background: var(--gold-soft);
+}
+.sk-src.sk-install {
+  color: #ffd0a0;
+  background: rgba(255, 150, 60, 0.16);
+}
+.sk-err {
+  color: #ffb4b4 !important;
+}
+.sk-warn {
+  color: #ffe2a8 !important;
+}
+.sk-view summary {
+  margin-top: 4px;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--gold);
+}
+.sk-text {
+  max-height: 180px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 8px;
+  border-radius: 7px;
+  white-space: pre-wrap;
+  font-size: 11.5px;
+  background: rgba(0, 0, 0, 0.3);
+}
+.sk-actions,
+.sk-new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.sk-new input {
+  flex: 1;
+  min-width: 160px;
+  height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.sk-msg {
+  min-height: 14px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--gold);
+}
+.toggle:disabled {
+  opacity: 0.35;
+}

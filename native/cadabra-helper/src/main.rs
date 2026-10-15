@@ -108,6 +108,8 @@ fn main() {
         }
     }
     hook::stop();
+    // 0.9.6: never leave other apps ducked when the app goes away.
+    session::restore_on_exit();
     // Give the writer a moment to flush.
     std::thread::sleep(std::time::Duration::from_millis(50));
 }
@@ -212,6 +214,19 @@ fn dispatch(method: &str, p: &Value) -> RpcResult {
             session::audio_sessions(&ex)
         }
         "lock_workstation" => session::lock_workstation(),
+        "duck_audio" => {
+            let ex: Vec<u32> = p.get("exclude").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_u64().map(|n| n as u32)).collect()).unwrap_or_default();
+            let factor = p.get("factor").and_then(|v| v.as_f64()).unwrap_or(0.25) as f32;
+            session::duck(&ex, factor)
+        }
+        "unduck_audio" => {
+            let list = p.get("sessions").and_then(|v| v.as_array()).map(|a| {
+                a.iter()
+                    .filter_map(|x| Some((x.get("id")?.as_str()?.to_string(), x.get("volume")?.as_f64()? as f32)))
+                    .collect::<Vec<_>>()
+            });
+            session::unduck(list)
+        }
         "monitors" => win::monitors(),
         "window_info" => win::window_info(win::hwnd_param(p)?),
         "foreground_window" => Ok(win::describe_foreground()),

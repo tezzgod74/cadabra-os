@@ -256,6 +256,9 @@ export class HelperClient extends EventEmitter {
   /** Round 8: "lock my PC" (LockWorkStation, exactly like Win+L). */
   lockWorkstation = () => this.call('lock_workstation', {}, 3000);
   /** Round 10.5: other apps' audio sessions with their peak meter (read-only). */
+  /** 0.9.6: lower other apps' audio sessions (restore with unduckAudio). */
+  duckAudio = (exclude: number[], factor: number) => this.call<{ ducked: { id: string; volume: number }[] }>('duck_audio', { exclude, factor }, 4000);
+  unduckAudio = (sessions?: { id: string; volume: number }[]) => this.call<{ restored: number }>('unduck_audio', sessions ? { sessions } : {}, 4000);
   audioSessions = (exclude: number[]) => this.call<{ sessions: { exe: string; peak: number; pid: number }[] }>('audio_sessions', { exclude }, 2000);
   /** Round 10: report the next keyboard / mouse input once ('activity' event). `hooks` false = no hooks (test runs). */
   armActivity = (on: boolean) => this.call<{ hooks: boolean }>('arm_activity', { on }, 2000);

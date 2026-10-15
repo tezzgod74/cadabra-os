@@ -269,6 +269,67 @@ function endIfDone() {
   }
 }
 
+// 0.9.6: announcements: optional output device (by label), louder playback, chime.
+let ann: { on: boolean; boost: boolean } = { on: false, boost: false };
+let annGain: GainNode | null = null;
+
+function outNode(c: AudioContext): AudioNode {
+  if (!ann.on || !ann.boost) return c.destination;
+  if (!annGain || annGain.context !== c) {
+    // About +5 dB, with a compressor so loud words don't clip.
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -10;
+    comp.ratio.value = 6;
+    annGain = c.createGain();
+    annGain.gain.value = 1.8;
+    annGain.connect(comp).connect(c.destination);
+  }
+  return annGain;
+}
+
+async function outputs(): Promise<MediaDeviceInfo[]> {
+  const ds = await navigator.mediaDevices.enumerateDevices();
+  return ds.filter((d) => d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
+}
+
+async function setSink(label: string): Promise<boolean> {
+  playCtx ??= new AudioContext();
+  const c = playCtx as AudioContext & { setSinkId?: (id: string) => Promise<void> };
+  if (!c.setSinkId) return !label;
+  try {
+    const id = label ? (await outputs()).find((d) => d.label === label)?.deviceId : '';
+    if (label && !id) return false;
+    await c.setSinkId(id ?? '');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function chime(): Promise<void> {
+  playCtx ??= new AudioContext();
+  const c = playCtx;
+  if (c.state === 'suspended') void c.resume();
+  // Two soft bell tones (E6 then A5), about 0.7 s.
+  const t = c.currentTime + 0.03;
+  for (const [f, at] of [
+    [1318.5, 0],
+    [880, 0.22],
+  ] as const) {
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = 'sine';
+    o.frequency.value = f;
+    g.gain.setValueAtTime(0, t + at);
+    g.gain.linearRampToValueAtTime(muted ? 0 : 0.18, t + at + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.45);
+    o.connect(g).connect(outNode(c));
+    o.start(t + at);
+    o.stop(t + at + 0.5);
+  }
+  return new Promise((r) => setTimeout(r, 800));
+}
+
 function playChunk(samples: Float32Array, sampleRate: number) {
   playCtx ??= new AudioContext();
   if (playCtx.state === 'suspended') void playCtx.resume();
@@ -280,7 +341,7 @@ function playChunk(samples: Float32Array, sampleRate: number) {
     const g = playCtx.createGain();
     g.gain.value = 0;
     src.connect(g).connect(playCtx.destination);
-  } else src.connect(playCtx.destination);
+  } else src.connect(outNode(playCtx));
   const at = Math.max(playCtx.currentTime + 0.02, nextAt);
   src.start(at);
   nextAt = at + buf.duration;
@@ -352,6 +413,14 @@ bridge.onCommand((m) => {
     if (wanted) void start(wanted.deviceId, wanted.raw);
   } else if (m.type === 'stop') void stop().then(() => bridge.status({ type: 'mic', state: 'stopped' }));
   else if (m.type === 'speak') speak(m.text);
+  else if (m.type === 'ann-config') {
+    ann = { on: !!m.on, boost: !!m.boost };
+    // Route to the chosen device while announcing; back to the default after.
+    void setSink(m.on ? String(m.device ?? '') : '').then((ok) => {
+      if (m.on) bridge.status({ type: 'ann-ready', ok });
+    });
+  } else if (m.type === 'ann-chime') void chime().then(() => bridge.status({ type: 'ann-chime-done' }));
+  else if (m.type === 'list-outputs') void outputs().then((os) => bridge.status({ type: 'outputs', outputs: os.map((d) => d.label).filter(Boolean) }));
   else if (m.type === 'say-begin') sayBegin();
   else if (m.type === 'say') say(m.text);
   else if (m.type === 'say-end') {

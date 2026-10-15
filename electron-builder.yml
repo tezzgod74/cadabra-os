@@ -25,6 +25,9 @@ extraResources:
   # Wake word (KWS 3.3M int8) + Silero VAD, ~6.5 MB. The ~100 MB speech model downloads on first use.
   - from: resources/models
     to: models
+  # 0.9.5: built-in skills + the skill template (user skills live in Documents\Cadabra\Skills).
+  - from: resources/skills
+    to: skills
   # Licence texts ship with the app (resources/LICENSE, resources/THIRD_PARTY_NOTICES.md).
   - from: LICENSE
     to: LICENSE

@@ -51,6 +51,14 @@ interface Api {
   micStatus(): Promise<string | null>;
   openMicSettings(): void;
   emailStatus?(): Promise<EmailStatus | null>;
+  announceOutputs?(): Promise<string[]>;
+  announceTest?(): Promise<{ ok: boolean; reason?: string } | null>;
+  skillsList?(): Promise<{ skills: SkillView[]; userDir: string; builtinDir: string } | null>;
+  skillsSetEnabled?(id: string, on: boolean): Promise<boolean>;
+  skillsView?(id: string): Promise<string | null>;
+  skillsOpenFolder?(which: string): Promise<boolean>;
+  skillsNew?(name: string): Promise<{ ok: boolean; error?: string; name?: string } | null>;
+  skillsReload?(): Promise<unknown>;
   waStatus?(): Promise<WaStatus | null>;
   waSetToken?(t: string | null): Promise<{ ok: boolean; error?: string } | null>;
   waTest?(): Promise<{ ok: boolean; error?: string } | null>;
@@ -116,7 +124,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.4',
+    version: '0.9.6',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -170,8 +178,41 @@ function makeDemoApi(): Api {
     emailConnectOAuth: async () => ({ ok: true, status: (demoEmail = { ...demoEmail, mode: 'gmail-oauth', connected: true, address: 'you@gmail.com' }) }),
     emailConnectImap: async () => ({ ok: true, status: (demoEmail = { ...demoEmail, mode: 'gmail-imap', connected: true, address: 'you@gmail.com' }) }),
     emailDisconnect: async () => (demoEmail = { ...demoEmail, mode: 'none', connected: false, address: '' }),
+    announceOutputs: async () => ['Speakers (High Definition Audio)', 'Living Room Speaker (Bluetooth)', 'Headphones (USB Audio)'],
+    announceTest: async () => ({ ok: true }),
+    skillsList: async () => ({ skills: demoSkills, userDir: 'C:\\Users\\you\\Documents\\Cadabra\\Skills', builtinDir: 'C:\\Program Files\\Cadabra OS\\resources\\skills' }),
+    skillsSetEnabled: async (id, on) => {
+      demoSkills = demoSkills.map((k) => (k.id === id ? { ...k, enabled: on, active: on && !k.errors.length } : k));
+      return true;
+    },
+    skillsView: async (id) => (id === 'builtin:morning-briefing' ? '# Morning briefing\n\n1. Get today’s weather for the user’s location.\n2. Check today’s email.\n3. Find three top headlines.\n4. Finish with one friendly sentence.' : '# My skill\n\n1. …'),
+    skillsOpenFolder: async () => true,
+    skillsNew: async (name) => ({ ok: true, name }),
+    skillsReload: async () => demoSkills,
   };
 }
+
+interface SkillView {
+  id: string;
+  name: string;
+  description: string;
+  source: 'builtin' | 'install' | 'user';
+  folder: string;
+  enabled: boolean;
+  active: boolean;
+  errors: string[];
+  warnings: string[];
+  shadowedBy?: string;
+  examples: string[];
+  files: string[];
+}
+let demoSkills: SkillView[] = [
+  { id: 'builtin:morning-briefing', name: 'morning-briefing', description: 'Use when the user asks for their morning briefing: weather, today’s new email and a few top headlines.', source: 'builtin', folder: '', enabled: true, active: true, errors: [], warnings: [], examples: ['morning briefing', 'start my day'], files: [] },
+  { id: 'builtin:quick-note', name: 'quick-note', description: 'Use when the user asks to jot down a quick note. Saves it in Documents with the date and time.', source: 'builtin', folder: '', enabled: true, active: true, errors: [], warnings: [], examples: ['take a quick note'], files: [] },
+  { id: 'builtin:work-setup', name: 'work-setup', description: 'Use when the user wants to set up for work: opens their usual apps and sites.', source: 'builtin', folder: '', enabled: false, active: false, errors: [], warnings: [], examples: ['set up for work'], files: ['sites.txt'] },
+  { id: 'user:plan-my-trip', name: 'plan-my-trip', description: 'Use when I ask to plan a weekend trip: checks the weather and opens my travel sites.', source: 'user', folder: '', enabled: false, active: false, errors: [], warnings: [], examples: ['plan my trip'], files: [] },
+  { id: 'user:dinner-ideas', name: 'dinner-ideas', description: '', source: 'user', folder: '', enabled: false, active: false, errors: ['Missing "description:" — one or two sentences saying when to use this skill.'], warnings: [], examples: [], files: [] },
+];
 
 let demoEmail: EmailStatus = { mode: 'none', address: '', connected: false, allowBodies: true, encryption: true };
 
@@ -457,6 +498,8 @@ class Turn {
       open_email: ['Opening Gmail', 'Opened Gmail'],
       open_url: ['Opening the page', 'Opened the page'],
       lock_pc: ['Locking the PC', 'Locked'],
+      list_skills: ['Checking your skills', 'Checked your skills'],
+      use_skill: ['Loading your skill', 'Loaded your skill'],
     };
     if (ev.phase === 'start') {
       const chip = document.createElement('span');
@@ -879,7 +922,7 @@ async function setupMicPicker(s: any) {
   };
 }
 
-async function showSettings(focus?: 'shortcut') {
+async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string) {
   const data = await api.getSettings();
   const s = data.settings;
   settingsEl.hidden = false;
@@ -933,6 +976,19 @@ async function showSettings(focus?: 'shortcut') {
       </div>
       <div class="s-group"><h4>WhatsApp</h4><div id="s-wa"></div></div>
       <div class="s-group"><h4>Email</h4><div id="s-email"></div></div>
+      <div class="s-group" id="s-ann-group"><h4>Announcements</h4>
+        <p class="s-note">Say “${nm}, make an announcement: dinner is ready”, or send <b>Announcement: …</b> from WhatsApp, and the PC says it out loud, word for word. It works while the PC is locked and even when spoken replies are off. Esc stops it.</p>
+        <div class="s-row"><div class="s-label">Chime first<small>A short, soft chime before the announcement.</small></div>${toggle(s.announcements?.chime !== false, 'ann-chime')}</div>
+        <div class="s-row"><div class="s-label">Say it<small>How many times each announcement is spoken.</small></div>
+          <select id="s-ann-repeat"><option value="1">Once</option><option value="2">Twice</option><option value="3">Three times</option></select></div>
+        <div class="s-row"><div class="s-label">Play announcements on<small>Pick a speaker system, or the PC’s normal output. (Needs the natural voice; the Windows voice always uses the normal output.)</small>
+          <select id="s-ann-device"><option value="">The PC’s normal sound output</option></select></div></div>
+        <div class="s-row"><div class="s-label">Louder announcements<small>A volume boost for the natural voice.</small></div>${toggle(!!s.announcements?.boost, 'ann-boost')}</div>
+        <div class="s-row"><div class="s-label">Lower other sounds while announcing<small>Music and videos go quiet for the announcement, then come back.</small></div>${toggle(s.announcements?.duck !== false, 'ann-duck')}</div>
+        <div class="s-row"><div class="s-label">Respect quiet hours<small>Don’t announce during the quiet hours set under Greetings.</small></div>${toggle(!!s.announcements?.respectQuietHours, 'ann-quiet')}</div>
+        <div class="sk-actions"><button type="button" class="btn ghost" id="s-ann-test">Test announcement</button><span class="sk-msg" id="s-ann-msg" aria-live="polite"></span></div>
+      </div>
+      <div class="s-group" id="s-skills-group"><h4>Skills</h4><div id="s-skills"></div></div>
       <div class="s-group"><h4>Greetings</h4>
         <div class="s-row"><div class="s-label">Greetings<small>A short spoken hello when you sign in, unlock, or come back (voice only, no window). Never during a call, a full-screen game or presentation, Focus / Do not disturb, muted speakers or quiet hours. Say “stop greeting me” to turn off.</small></div>${toggle(s.greetings?.enabled !== false, 'greet')}</div>
         <div class="s-row"><div class="s-label">Greet after away for
@@ -966,6 +1022,10 @@ async function showSettings(focus?: 'shortcut') {
     cloud: (v) => ({ voice: { ...s.voice, cloudVoice: v } }),
     web: (v) => ({ webAccess: v }),
     claudeweb: (v) => ({ claudeApiWeb: v }),
+    'ann-chime': (v) => ({ announcements: { ...s.announcements, chime: v } }),
+    'ann-boost': (v) => ({ announcements: { ...s.announcements, boost: v } }),
+    'ann-duck': (v) => ({ announcements: { ...s.announcements, duck: v } }),
+    'ann-quiet': (v) => ({ announcements: { ...s.announcements, respectQuietHours: v } }),
     greet: (v) => ({ greetings: { ...s.greetings, enabled: v } }),
     login: (v) => ({ launchAtLogin: v }),
     paused: (v) => ({ paused: v }),
@@ -1000,6 +1060,37 @@ async function showSettings(focus?: 'shortcut') {
   locIn.value = s.location ?? '';
   locIn.onchange = () => void api.setSettings({ location: locIn.value.trim() });
   void renderEmailSettings(settingsEl.querySelector<HTMLDivElement>('#s-email')!, s.provider);
+  // 0.9.6: announcements.
+  const annRep = settingsEl.querySelector<HTMLSelectElement>('#s-ann-repeat')!;
+  annRep.value = String(s.announcements?.repeat ?? 1);
+  annRep.onchange = async () => {
+    const u = await api.setSettings({ announcements: { ...s.announcements, repeat: Number(annRep.value) } });
+    if (u) Object.assign(s, u);
+  };
+  const annDev = settingsEl.querySelector<HTMLSelectElement>('#s-ann-device')!;
+  void api.announceOutputs?.().then((outs) => {
+    const cur = s.announcements?.device ?? '';
+    for (const o of new Set([...(outs ?? []), ...(cur ? [cur] : [])])) {
+      const opt = document.createElement('option');
+      opt.value = o;
+      opt.textContent = (outs ?? []).includes(o) ? o : `${o} (not connected)`;
+      annDev.append(opt);
+    }
+    annDev.value = cur;
+  });
+  annDev.onchange = async () => {
+    const u = await api.setSettings({ announcements: { ...s.announcements, device: annDev.value } });
+    if (u) Object.assign(s, u);
+  };
+  settingsEl.querySelector<HTMLButtonElement>('#s-ann-test')!.onclick = async () => {
+    const m = settingsEl.querySelector<HTMLElement>('#s-ann-msg')!;
+    m.textContent = 'Announcing…';
+    const r = await api.announceTest?.();
+    m.textContent = r?.ok ? 'Done.' : (r?.reason ?? 'Couldn’t announce.');
+  };
+  void renderSkills(settingsEl.querySelector<HTMLDivElement>('#s-skills')!, newSkillName).then(() => {
+    if (focus === 'skills') settingsEl.querySelector('#s-skills-group')?.scrollIntoView({ block: 'start' });
+  });
   void renderWhatsApp(settingsEl.querySelector<HTMLDivElement>('#s-wa')!, s.provider, '', assistantName(s.voice.wakeWord).replace(/[^A-Za-z ]/g, ''));
   const gAway = settingsEl.querySelector<HTMLSelectElement>('#s-greetaway')!;
   gAway.value = String([10, 20, 30, 60].reduce((a, b) => (Math.abs(b - (s.greetings?.awayMinutes ?? 20)) < Math.abs(a - (s.greetings?.awayMinutes ?? 20)) ? b : a)));
@@ -1386,8 +1477,13 @@ api.onMessage((m: PanelMessage | any) => {
       if (m.problem && m.text !== lastVoiceProblem) addNotice(`${/[.!?…)]$/.test(m.text) ? m.text : `${m.text}.`} ${m.state === 'no-mic-access' ? 'Settings → Voice → Open microphone settings to allow it.' : 'Tray → Restart voice if it doesn’t recover.'}`, 'warn');
       lastVoiceProblem = m.problem ? m.text : '';
       break;
+    case 'skills-changed': {
+      const box = settingsEl.hidden ? null : settingsEl.querySelector<HTMLDivElement>('#s-skills');
+      if (box && !box.querySelector('.sk-new input:focus')) void renderSkills(box);
+      break;
+    }
     case 'view':
-      if (m.view === 'settings') void showSettings(m.focus);
+      if (m.view === 'settings') void showSettings(m.focus, m.newSkill);
       else settingsEl.hidden = true;
       break;
     case 'user-echo':
@@ -1576,6 +1672,94 @@ async function renderPerms(box: HTMLElement): Promise<void> {
     };
     line.append(b);
     box.append(line);
+  }
+}
+
+// ---- 0.9.5: Settings → Skills ----
+const SKILL_SOURCE: Record<string, string> = { builtin: 'Built-in', user: 'Yours', install: 'Install folder' };
+async function renderSkills(box: HTMLDivElement, newName?: string): Promise<void> {
+  const r = await api.skillsList?.().catch(() => null);
+  if (!r) {
+    box.innerHTML = '<p class="s-note">Skills aren’t available in this build.</p>';
+    return;
+  }
+  const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+  const rows = r.skills
+    .map((k) => {
+      const blocked = k.errors.length > 0 || !!k.shadowedBy;
+      return `<div class="s-row sk-row${k.active ? ' on' : ''}" data-id="${esc(k.id)}">
+        <div class="s-label"><span class="sk-name">${esc(k.name)}</span> <span class="sk-src sk-${k.source}">${SKILL_SOURCE[k.source] ?? k.source}</span>
+          <small>${k.description ? esc(k.description) : ''}</small>
+          ${k.errors.map((e) => `<small class="sk-err">${esc(e)}</small>`).join('')}
+          ${k.shadowedBy ? `<small class="sk-warn">Not used: your own skill with the same name replaces it.</small>` : ''}
+          ${k.warnings.map((w) => `<small class="sk-warn">${esc(w)}</small>`).join('')}
+          ${k.errors.length ? '' : `<details class="sk-view"><summary>View instructions</summary><pre class="sk-text">Loading…</pre></details>`}
+        </div>
+        <button type="button" class="toggle ${k.enabled && !blocked ? 'on' : ''}" role="switch" aria-checked="${k.enabled && !blocked}" aria-label="Use ${esc(k.name)}" ${blocked ? 'disabled' : ''}></button>
+      </div>`;
+    })
+    .join('');
+  box.innerHTML = `
+    <p class="s-note">Skills teach ${esc(assistantLabel)} how to do things your way, like a morning briefing or your work setup. Your skills live in <b>${esc(r.userDir)}</b>, which updates never touch. New skills start switched off: turn them on here. A skill can’t switch off any safety check. <a href="#" class="sk-guide">How to make a skill</a></p>
+    ${rows || '<p class="s-note">No skills yet.</p>'}
+    <div class="sk-actions">
+      <button type="button" class="btn ghost sk-open">Open my skills folder</button>
+      <button type="button" class="btn ghost sk-new-btn">New skill from template</button>
+      <button type="button" class="btn ghost sk-reload">Reload</button>
+    </div>
+    <div class="sk-new" hidden><input type="text" maxlength="48" placeholder="Name your skill, e.g. plan my trip" aria-label="New skill name" /><button type="button" class="btn primary sk-create">Create</button></div>
+    <p class="sk-msg" aria-live="polite"></p>
+    <p class="s-note">Skills you put in Cadabra’s install folder (${esc(r.builtinDir)}) also load, but updates may remove them.</p>`;
+  const msg = box.querySelector<HTMLElement>('.sk-msg')!;
+  box.querySelectorAll<HTMLElement>('.sk-row').forEach((row) => {
+    const id = row.dataset.id!;
+    const t = row.querySelector<HTMLButtonElement>('.toggle')!;
+    t.onclick = async () => {
+      if (t.disabled) return;
+      const on = !t.classList.contains('on');
+      t.classList.toggle('on', on);
+      t.setAttribute('aria-checked', String(on));
+      await api.skillsSetEnabled?.(id, on);
+    };
+    const det = row.querySelector<HTMLDetailsElement>('.sk-view');
+    det?.addEventListener('toggle', async () => {
+      if (!det.open) return;
+      const txt = await api.skillsView?.(id);
+      det.querySelector('pre')!.textContent = txt ?? '(not available)';
+    });
+  });
+  box.querySelector<HTMLAnchorElement>('.sk-guide')!.onclick = (e) => {
+    e.preventDefault();
+    void api.skillsOpenFolder?.('guide');
+  };
+  box.querySelector<HTMLButtonElement>('.sk-open')!.onclick = () => void api.skillsOpenFolder?.('user');
+  box.querySelector<HTMLButtonElement>('.sk-reload')!.onclick = async () => {
+    await api.skillsReload?.();
+    await renderSkills(box);
+  };
+  const nb = box.querySelector<HTMLElement>('.sk-new')!;
+  const nameIn = nb.querySelector<HTMLInputElement>('input')!;
+  const create = async () => {
+    const name = nameIn.value.trim();
+    if (!name) return nameIn.focus();
+    const res = await api.skillsNew?.(name);
+    if (res?.ok) {
+      await renderSkills(box);
+      box.querySelector<HTMLElement>('.sk-msg')!.textContent = `Created “${res.name}” in your skills folder and opened it in Notepad. Edit it, save, then turn it on here.`;
+    } else msg.textContent = res?.error ?? 'Couldn’t create the skill.';
+  };
+  box.querySelector<HTMLButtonElement>('.sk-new-btn')!.onclick = () => {
+    nb.hidden = false;
+    nameIn.focus();
+  };
+  nb.querySelector<HTMLButtonElement>('.sk-create')!.onclick = () => void create();
+  nameIn.onkeydown = (e) => {
+    if (e.key === 'Enter') void create();
+  };
+  if (newName != null) {
+    nb.hidden = false;
+    nameIn.value = newName;
+    setTimeout(() => nameIn.focus(), 50);
   }
 }
 

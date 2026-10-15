@@ -47,6 +47,8 @@ export const DEMO_STATES = [
   'claude-install-manual',
   'claude-connect',
   'claude-test-ok',
+  'settings-skills',
+  'settings-announcements',
 ] as const;
 
 /**

@@ -4,7 +4,7 @@
 // success can back. `test/round12_7.test.ts` fails if a tool Cadabra exposes
 // has no entry, so a new tool can't silently break the honesty check again.
 
-export type ClaimKind = 'type' | 'click' | 'press' | 'send' | 'open' | 'run' | 'lock' | 'screenshot' | 'check' | 'scroll' | 'point' | 'settings';
+export type ClaimKind = 'type' | 'click' | 'press' | 'send' | 'open' | 'run' | 'lock' | 'screenshot' | 'check' | 'scroll' | 'point' | 'settings' | 'announce';
 
 /** The verbs that make a sentence a claim of each kind (inside the first-person pattern). */
 export const CLAIM_VERBS: Record<ClaimKind, { verbs: string; verb: string }> = {
@@ -20,6 +20,7 @@ export const CLAIM_VERBS: Record<ClaimKind, { verbs: string; verb: string }> = {
   scroll: { verbs: 'scrolled', verb: 'scroll' },
   point: { verbs: 'highlighted|pointed (?:it |that )?out|circled', verb: 'point it out' },
   settings: { verbs: 'switched|paused', verb: 'change that setting' },
+  announce: { verbs: 'announced|made (?:an|the) announcement', verb: 'announce it' },
 };
 
 /**
@@ -58,6 +59,11 @@ export const TOOL_CLAIMS: Record<string, ClaimKind[]> = {
   // System, WhatsApp
   lock_pc: ['lock'],
   send_screenshot: ['send', 'screenshot'],
+  // Announcements (0.9.6)
+  announce: ['announce'],
+  // Skills (0.9.5): loading instructions backs no action claim
+  list_skills: [],
+  use_skill: [],
   // Backends' own web tools (provider tool events)
   WebSearch: ['check'],
   WebFetch: ['check', 'open'],

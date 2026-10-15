@@ -37,6 +37,7 @@ Cadabra OS has three parts:
 │  email/ ─── read-only Gmail (own OAuth client, or IMAP app password)            │
 │  whatsapp/ ─── WhatsApp Agent Platform client and remote bridge                 │
 │  apps/ ─── app index (Start menu, Desktop, Store, Steam, Epic, GOG, App Paths)  │
+│  skills.ts ─── skill registry (built-in + Documents\Cadabra\Skills, hot reload) │
 │  settings-store.ts ─── settings.json + secrets.json (safeStorage / DPAPI)       │
 └──────┬──────────────────────┬───────────────────────┬──────────────────────────┘
        │ IPC (contextIsolation, sandbox, single preload src/preload/bridge.ts)
@@ -123,6 +124,10 @@ All wake-word and speech recognition runs locally in an Electron `utilityProcess
 - **Health**: `voice/health.ts` watches the capture and restarts it with backoff after device changes.
 
 `greeter.ts` speaks short greetings on sign-in, unlock and return from idle. It stays quiet during calls (`mic-usage.ts`), with media playing (`media-watch.ts`), in full-screen apps, in Focus mode, when muted and during quiet hours.
+
+## Skills
+
+`src/main/skills.ts` (registry) and `src/shared/skills.ts` (parser, validation, matcher) load skills from `resources/skills` (shipped) and `Documents\Cadabra\Skills` (the user's). The registry watches both folders and reloads when they change. Each turn's context lists the enabled skills' names and descriptions; the model loads one with the `use_skill` tool. When a request closely matches a skill's `examples`, the skill is preloaded into that turn's context: the local fast path for PC and WhatsApp turns. See [SKILLS.md](SKILLS.md) and [SECURITY.md](SECURITY.md#skills).
 
 ## WhatsApp bridge
 

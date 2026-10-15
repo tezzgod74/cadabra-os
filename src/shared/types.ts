@@ -125,6 +125,10 @@ export interface Settings {
   webAccess: boolean;
   /** 0.9.3: web search for Claude's API-key / Bedrock / Vertex routes (runs Claude Code without --bare so Cadabra's web guard hook works). */
   claudeApiWeb: boolean;
+  /** 0.9.5: skills the user turned on or off, by id ("user:quick-note"). Missing = default (built-ins on, others off). */
+  skills: { enabled: Record<string, boolean> };
+  /** 0.9.6: announcements (spoken verbatim on the PC). */
+  announcements: import('./announce').AnnouncementSettings;
   /** Round 7: "Your location" (a city) for weather; '' = ask once in conversation. Never guessed from the IP. */
   location: string;
   /** Round 8: spoken welcome greetings (no panel). */
@@ -224,10 +228,11 @@ export type PanelMessage =
   | { type: 'confirm-resolved'; id: string; allowed: boolean }
   | { type: 'busy'; busy: boolean; run?: number }
   | { type: 'status'; text: string; run?: number }
+  | { type: 'skills-changed' }
   | { type: 'model'; provider: ProviderInfo; model: string }
   | { type: 'voice'; state: VoiceState; level?: number; partial?: string }
   | { type: 'notice'; text: string; tone?: 'info' | 'warn' }
-  | { type: 'view'; view: 'chat' | 'settings'; focus?: 'shortcut' }
+  | { type: 'view'; view: 'chat' | 'settings'; focus?: 'shortcut' | 'skills'; newSkill?: string }
   | { type: 'user-echo'; text: string; via: 'voice' | 'typed' }
   | { type: 'apps'; query: string; choices: { id: string; name: string; source: string; icon?: string }[] }
   | { type: 'launch'; name: string; icon?: string; status: 'opening' | 'opened' | 'focused' | 'error'; detail?: string }
