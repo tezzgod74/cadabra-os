@@ -1,0 +1,62 @@
+# Labels used by the issue templates and docs/HELP_WANTED_TESTING.md.
+# (Create them in the repository's Labels page, or with a label-sync action.)
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+- name: enhancement
+  color: a2eeef
+  description: New feature or request
+- name: test-report
+  color: 0e8a16
+  description: A tester's report on how something worked
+- name: needs-tester
+  color: fbca04
+  description: Needs someone with the right account, hardware or setup to test
+- name: help wanted
+  color: 008672
+  description: Extra attention is needed
+- name: area:codex
+  color: c5def5
+  description: OpenAI via the Codex CLI
+- name: area:gemini
+  color: c5def5
+  description: Google Gemini via the Gemini CLI
+- name: area:copilot
+  color: c5def5
+  description: GitHub Copilot
+- name: area:claude
+  color: c5def5
+  description: Claude (Claude Code, API key, Bedrock, Vertex)
+- name: area:email
+  color: c5def5
+  description: Gmail (OAuth or app password)
+- name: area:voice
+  color: c5def5
+  description: Wake word, speech recognition, voices
+- name: area:whatsapp
+  color: c5def5
+  description: WhatsApp Agent Platform
+- name: area:input
+  color: c5def5
+  description: Keyboards, IME, typing, clicking, KVM tools
+- name: area:display
+  color: c5def5
+  description: Monitors, scaling, overlays
+- name: area:platform
+  color: c5def5
+  description: Windows versions, ARM64, installer
+- name: area:announcements
+  color: c5def5
+  description: Announcements, chime, output devices, ducking
+- name: area:safety
+  color: c5def5
+  description: Safety gate, elevated windows, isolation
+- name: area:accessibility
+  color: c5def5
+  description: Screen readers, high contrast, reduced motion
+- name: area:apps
+  color: c5def5
+  description: App and game launching
+- name: area:docs
+  color: c5def5
+  description: Documentation and licences

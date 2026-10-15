@@ -6,7 +6,17 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
-> **Status: 0.9.7, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
+> [!WARNING]
+> **Public beta (0.9.7).** Cadabra OS works day to day for its developers, but it's a beta: expect rough edges.
+>
+> - **Tested:** Windows 11 x64; Claude with a Claude subscription (through Claude Code); voice, wake word and the natural voices; WhatsApp; Gmail with your own Google key; skills; announcements.
+> - **Not tested yet** (no accounts or hardware to try them): OpenAI Codex, Gemini, GitHub Copilot, Claude with an API key (only tested against a fake server so far), including web search, Claude via Bedrock or Vertex, Gmail app passwords, the Southern cloud voices, Windows 10, ARM64 PCs, non-US keyboards and input methods, and more. **[Help us test](#help-us-test).**
+> - **The installer isn't code-signed yet.** Windows SmartScreen shows "Windows protected your PC": choose **More info → Run anyway**. Only do this with the installer from this repository's [Releases](../../releases) page.
+> - **Found a bug?** Open an issue and attach tray → **Export diagnostics…**. It's redacted, but **read it before posting**, and never paste API keys or tokens.
+
+## Download
+
+Get the latest installer (`CadabraOS-Setup-<version>.exe`) from **[GitHub Releases](../../releases)**. Each release lists the installer's SHA-256 checksum. To check your download, run `Get-FileHash .\CadabraOS-Setup-<version>.exe` in PowerShell and compare. Release notes: [docs/RELEASE_NOTES_0.9.7-beta.md](docs/RELEASE_NOTES_0.9.7-beta.md).
 
 ## Features
 
@@ -194,6 +204,10 @@ Then ask "did I get an email from Sam today?". Email is treated as untrusted: li
 - Voice is English-only for now.
 - Prompt injection can't be fully prevented. The safety gate's job is to make sure it can't lead to a risky action without your approval.
 - The WhatsApp Agent Platform is a beta in limited regions.
+
+## Help us test
+
+Cadabra connects to many services and runs on many kinds of PCs, and we can't try them all. If you have an account or a setup we don't, a short test helps a lot. [docs/HELP_WANTED_TESTING.md](docs/HELP_WANTED_TESTING.md) lists what needs testing, with step-by-step instructions and what "good" looks like for each. Report results with the **Test report** issue template.
 
 ## Contributing
 
