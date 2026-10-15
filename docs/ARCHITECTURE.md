@@ -110,7 +110,7 @@ Each backend gets only Cadabra's tools. Built-in shell, file and web tools are o
 | GitHub Copilot | Copilot SDK (`providers/copilot.ts`). | `availableTools: ['custom:*']`; other permission requests rejected. |
 | Demo | Offline canned answers (`providers/demo.ts`). | — |
 
-Optional read-only web search and fetch use each backend's own web tools. `src/shared/web-guard.ts` checks every call first.
+Optional read-only web search and fetch use each backend's own web tools. `src/shared/web-guard.ts` checks every call first. Claude's API-key, Bedrock and Vertex routes run with `--bare`, which skips hooks and Claude Code's web tools, so those routes offer no web search (the guard couldn't run there).
 
 ## Voice
 

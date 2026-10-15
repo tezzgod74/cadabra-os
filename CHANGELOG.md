@@ -4,6 +4,12 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.2
+
+- **Web search and Claude API keys:** Claude Code's `--bare` mode (used for API key, Bedrock and Vertex) turns off hooks and its web tools, so Cadabra's web guard couldn't check searches there. Those routes no longer offer web search at all; Settings → Web access says so, and Claude tells you plainly if you ask for current news. Web search keeps working with the Claude subscription, Codex, Gemini and Copilot; weather works everywhere.
+- **API-key route:** also removes other providers' credentials (Foundry, Bedrock bearer tokens, Vertex project settings) and every other `ANTHROPIC_*` setting from Claude Code's environment.
+- Wording: Claude Code is free to install; using Claude needs a Claude plan or an API key.
+
 ## 0.9.1 — Claude through your own Claude Code
 
 - **No Anthropic SDK in the installer any more.** Both Claude modes (your subscription, or an API key; also Bedrock and Vertex) now run through your own, separately installed Claude Code app. The proprietary `@anthropic-ai/claude-agent-sdk` package was removed.

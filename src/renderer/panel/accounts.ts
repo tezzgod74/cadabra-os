@@ -184,7 +184,7 @@ export async function renderAccount(el: HTMLElement, api: AccountApi, provider: 
     };
     const step1 = installed
       ? `<p class="cl-ok">Claude Code is installed on this PC.</p>`
-      : `<p class="cl-what">Claude Code is Anthropic’s free app that lets Cadabra talk to Claude. It isn’t part of Cadabra, so it’s installed once, separately. It takes about a minute.</p>
+      : `<p class="cl-what">Claude Code is Anthropic’s app that lets Cadabra talk to Claude. It’s free to install; using Claude needs a Claude plan or an API key (next step). It isn’t part of Cadabra, so it’s installed once, separately. It takes about a minute.</p>
         ${
           i?.blocker
             ? `<p class="acct-err">${esc(i.blocker)}</p>`

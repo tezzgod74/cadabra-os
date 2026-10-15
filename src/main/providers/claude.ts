@@ -96,7 +96,7 @@ export function findVsCodeBundledClaude(home = os.homedir()): string | undefined
 export const CLAUDE_CODE_MISSING: AuthStatus = {
   ok: false,
   detail: 'The Claude Code app isn’t installed',
-  howTo: 'Cadabra talks to Claude through Anthropic’s free Claude Code app. Choose “Install Claude Code” and Cadabra installs it for you.',
+  howTo: 'Cadabra talks to Claude through Anthropic’s Claude Code app (free to install; using Claude needs a Claude plan or an API key). Choose “Install Claude Code” and Cadabra installs it for you.',
 };
 
 /**
@@ -119,6 +119,11 @@ export class ClaudeProvider implements ProviderAdapter {
   private route(): ClaudeRoute {
     const r = this.deps.route?.();
     return r === 'claude-code' || r === 'bedrock' || r === 'vertex' ? r : 'api-key';
+  }
+
+  /** Web search works for this Claude connection (only the subscription route; see ensureCli). */
+  webAvailable(): boolean {
+    return this.route() === 'claude-code';
   }
 
   /** Changes when the route or the saved key changes, so a stale process is never reused. */
@@ -265,7 +270,11 @@ export class ClaudeProvider implements ProviderAdapter {
           revokeSession: this.deps.revokeSession,
           issueSession: this.deps.issueSession,
           permissionPrompts: !v || versionAtLeast(v, CLAUDE_CODE_PERMISSION_PROMPTS_VERSION),
-          web: !!this.deps.webAccess?.(),
+          // `--bare` (API key / Bedrock / Vertex) disables hooks and Claude Code's
+          // web tools (verified locally against Claude Code 2.1.212, round 0.9.2),
+          // so Cadabra's web guard couldn't run: web tools are only offered on
+          // the subscription route, where the guard hook works.
+          web: route === 'claude-code' && !!this.deps.webAccess?.(),
           route,
           // AUTH-1 layer 2: the key goes only into this child's environment.
           apiKey: route === 'api-key' ? this.deps.apiKey() : undefined,

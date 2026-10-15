@@ -115,7 +115,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.1',
+    version: '0.9.2',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -912,7 +912,7 @@ async function showSettings(focus?: 'shortcut') {
         <p class="s-note">Downloads (once, on first use): speech recognition ~100 MB; the natural voice ~350 MB, which includes espeak-ng pronunciation data (GPL-3.0).</p>
       </div>
       <div class="s-group"><h4>Web &amp; weather</h4>
-        <div class="s-row"><div class="s-label">Web access<small>Lets your AI search and read web pages (read-only) for news, sports and other current information. Searches go through your chosen AI (${({ claude: 'Anthropic', codex: 'OpenAI', gemini: 'Google', copilot: 'GitHub', demo: 'nowhere: demo is offline' } as Record<string, string>)[s.provider] ?? s.provider})${s.provider === 'claude' && s.claudeRoute !== 'claude-code' ? '; with an API key each search has a small extra cost' : ''}. Cadabra blocks codes, card numbers and keys from your screen, asks before sending other text copied from it, never opens addresses on your PC or home network, and asks before opening a page that didn’t come from you or the search. It can’t spot reworded screen text in a search.${s.provider === 'codex' ? ' With Codex, searches are checked as they happen (the request is stopped if needed), not before they’re sent.' : ''}</small></div>${toggle(s.webAccess !== false, 'web')}</div>
+        <div class="s-row"><div class="s-label">Web access<small>Lets your AI search and read web pages (read-only) for news, sports and other current information. Searches go through your chosen AI (${({ claude: 'Anthropic', codex: 'OpenAI', gemini: 'Google', copilot: 'GitHub', demo: 'nowhere: demo is offline' } as Record<string, string>)[s.provider] ?? s.provider})${s.provider === 'claude' && s.claudeRoute !== 'claude-code' ? '. <b>Note:</b> web search currently works with the Claude subscription route, Codex, Gemini or Copilot, not with an Anthropic API key, Bedrock or Vertex (weather still works)' : ''}. Cadabra blocks codes, card numbers and keys from your screen, asks before sending other text copied from it, never opens addresses on your PC or home network, and asks before opening a page that didn’t come from you or the search. It can’t spot reworded screen text in a search.${s.provider === 'codex' ? ' With Codex, searches are checked as they happen (the request is stopped if needed), not before they’re sent.' : ''}</small></div>${toggle(s.webAccess !== false, 'web')}</div>
         <div class="s-row"><div class="s-label">Your location<small>A city for weather (“What’s the weather?”). Weather comes from Open-Meteo; only the city name and its coordinates are sent. Never guessed from your IP address.</small>
           <input id="s-location" type="text" maxlength="80" placeholder="e.g. Seattle, Washington" /></div></div>
       </div>

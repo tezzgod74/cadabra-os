@@ -165,6 +165,35 @@ describe('AUTH-1: API-key mode (via the user’s Claude Code app) can never fall
     expect(env.ANTHROPIC_API_KEY).toBeUndefined();
     expect(env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
   });
+  it('0.9.2 L2: the API-key route drops every other provider credential and ANTHROPIC_* setting', () => {
+    const env = claudeApiEnv({ ...DIRTY, ANTHROPIC_FOUNDRY_API_KEY: 'f', AWS_BEARER_TOKEN_BEDROCK: 'b', ANTHROPIC_VERTEX_PROJECT_ID: 'p', CLOUD_ML_REGION: 'r', ANTHROPIC_MODEL: 'x', ANTHROPIC_SOMETHING_NEW: 'y' }, { route: 'api-key', key: 'sk-ant-mine', configDir: 'X', version: '1' });
+    for (const k of ['ANTHROPIC_FOUNDRY_API_KEY', 'AWS_BEARER_TOKEN_BEDROCK', 'ANTHROPIC_VERTEX_PROJECT_ID', 'CLOUD_ML_REGION', 'ANTHROPIC_MODEL', 'ANTHROPIC_SOMETHING_NEW']) expect(env[k], k).toBeUndefined();
+    expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-mine');
+    const bedrock = claudeApiEnv({ ...DIRTY, AWS_BEARER_TOKEN_BEDROCK: 'b', ANTHROPIC_FOUNDRY_API_KEY: 'f' }, { route: 'bedrock', configDir: 'X', version: '1' });
+    expect(bedrock.AWS_BEARER_TOKEN_BEDROCK).toBe('b'); // Bedrock's own credential stays
+    expect(bedrock.ANTHROPIC_FOUNDRY_API_KEY).toBeUndefined();
+    const vertex = claudeApiEnv({ ...DIRTY, AWS_BEARER_TOKEN_BEDROCK: 'b', ANTHROPIC_VERTEX_PROJECT_ID: 'p' }, { route: 'vertex', configDir: 'X', version: '1' });
+    expect(vertex.AWS_BEARER_TOKEN_BEDROCK).toBeUndefined();
+    expect(vertex.ANTHROPIC_VERTEX_PROJECT_ID).toBe('p');
+  });
+  it('0.9.2 M1: --bare never comes with web tools or the hook settings (hooks don’t run under --bare)', async () => {
+    const a = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', webSettingsFile: 's.json', bare: true });
+    expect(a[a.indexOf('--tools') + 1]).toBe('');
+    expect(a).not.toContain('--settings');
+    const logFile = path.join(tmp, 'web.log');
+    process.env.FAKE_LOG = logFile;
+    const p = apiProvider('w6', 'sk-ant-test', { webAccess: () => true });
+    try {
+      expect(p.webAvailable()).toBe(false);
+      await collect(p);
+      const argv: string[] = readLog(logFile)[0].argv;
+      expect(argv).toContain('--bare');
+      expect(argv[argv.indexOf('--tools') + 1]).toBe('');
+      expect(argv).not.toContain('--settings');
+    } finally {
+      p.reset();
+    }
+  }, 30_000);
   it('changing the saved key replaces a warm process (never reused with the old key)', async () => {
     const logFile = path.join(tmp, 'swap.log');
     process.env.FAKE_LOG = logFile;
@@ -231,7 +260,7 @@ describe('Export diagnostics: redaction', () => {
     expect(t).not.toMatch(/@example\.com|sk-ant-|AIza|abcdefghijklmnopqrstuv|0123456789abcdef0123/);
     if (os.userInfo().username.length >= 3) expect(t).not.toContain(os.userInfo().username);
     expect(redact(os.homedir())).not.toContain(path.basename(os.homedir()));
-    const bundle = diagnosticsText({ version: '0.9.1', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
+    const bundle = diagnosticsText({ version: '0.9.2', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
     expect(bundle).not.toContain('Alex');
     expect(bundle).toContain('Signed in to ChatGPT (Plus)');
   });

@@ -36,7 +36,19 @@ export const AUTH_ENV_VARS = [
   'CLAUDE_CONFIG_DIR',
   'CLAUDE_CODE_SKIP_BEDROCK_AUTH',
   'CLAUDE_CODE_SKIP_VERTEX_AUTH',
+  'CLAUDE_CODE_SKIP_FOUNDRY_AUTH',
+  'ANTHROPIC_FOUNDRY_API_KEY',
+  'ANTHROPIC_FOUNDRY_BASE_URL',
+  'ANTHROPIC_FOUNDRY_RESOURCE',
+  'ANTHROPIC_BEDROCK_BASE_URL',
+  'ANTHROPIC_VERTEX_BASE_URL',
 ];
+
+/**
+ * Other providers' credentials Claude Code honours. The API-key route drops
+ * them all (only our key may authenticate); Bedrock / Vertex keep their own.
+ */
+export const OTHER_PROVIDER_ENV_VARS = ['AWS_BEARER_TOKEN_BEDROCK', 'ANTHROPIC_VERTEX_PROJECT_ID', 'CLOUD_ML_REGION', 'ANTHROPIC_FOUNDRY_API_KEY'];
 
 export type ClaudeRoute = 'api-key' | 'claude-code' | 'bedrock' | 'vertex';
 
@@ -58,6 +70,11 @@ export const AUTH_REFUSED_IN_TURN = 'Stopped: Claude wasn’t using your API key
 export function claudeApiEnv(base: NodeJS.ProcessEnv, o: { route: Exclude<ClaudeRoute, 'claude-code'>; key?: string; configDir: string; version: string }): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...base };
   for (const k of Object.keys(env)) if (AUTH_ENV_VARS.includes(k) || /^CLAUDE_CODE_OAUTH/i.test(k)) delete env[k];
+  // API-key route: nothing but our key — every ANTHROPIC_* setting and every
+  // other provider's credential goes (defence in depth; the initialize check
+  // would refuse them anyway).
+  if (o.route === 'api-key') for (const k of Object.keys(env)) if (/^ANTHROPIC_/i.test(k) || OTHER_PROVIDER_ENV_VARS.includes(k)) delete env[k];
+  if (o.route === 'vertex') delete env.AWS_BEARER_TOKEN_BEDROCK;
   env.CLAUDE_AGENT_SDK_CLIENT_APP = `cadabra-os/${o.version}`;
   env.CLAUDE_CONFIG_DIR = o.configDir;
   if (o.route === 'bedrock') env.CLAUDE_CODE_USE_BEDROCK = '1';

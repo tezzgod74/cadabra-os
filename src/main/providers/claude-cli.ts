@@ -98,6 +98,9 @@ export function claudeWebHookSettings(o: { url: string; token: string; sessionKe
 }
 
 export function claudeCliArgs(o: { model?: string; mcpConfigFile: string; systemPromptFile: string; permissionPrompts?: boolean; webSettingsFile?: string; bare?: boolean }): string[] {
+  // Fail closed: `--bare` skips hooks, so the web tools (which need Cadabra's
+  // hook to approve each call) are never offered together with it.
+  if (o.bare && o.webSettingsFile) o = { ...o, webSettingsFile: undefined };
   return [
     '-p',
     // API-key / cloud routes: Anthropic auth is strictly ANTHROPIC_API_KEY;

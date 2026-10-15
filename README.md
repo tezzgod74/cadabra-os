@@ -6,7 +6,7 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
-> **Status: 0.9.1, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
+> **Status: 0.9.2, a pre-1.0 preview.** It works day to day, but expect rough edges. The installer isn't code-signed yet. Windows 11 only.
 
 ## Features
 
@@ -36,7 +36,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 - Windows 11 (x64).
 - At least one AI account, or the offline Demo mode to look around:
-  - **Claude:** Anthropic's free [Claude Code](https://claude.com/claude-code) app (Cadabra can install it for you), plus either a Claude subscription or an Anthropic API key (Amazon Bedrock and Google Vertex AI also work). See [Setting up Claude](#setting-up-claude);
+  - **Claude:** Anthropic's [Claude Code](https://claude.com/claude-code) app (free to install; Cadabra can install it for you), plus either a Claude subscription or an Anthropic API key (Amazon Bedrock and Google Vertex AI also work). See [Setting up Claude](#setting-up-claude);
   - **OpenAI:** the [Codex CLI](https://github.com/openai/codex) (`npm i -g @openai/codex`) with a ChatGPT sign-in or an API key;
   - **Google:** the [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`npm i -g @google/gemini-cli`) with a Google sign-in or a Gemini API key;
   - **GitHub Copilot:** the Copilot CLI with your Copilot plan.
@@ -44,7 +44,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 ## Install
 
-1. Download `CadabraOS-Setup-0.9.1.exe` from the releases page, or [build it yourself](#build-from-source).
+1. Download `CadabraOS-Setup-0.9.2.exe` from the releases page, or [build it yourself](#build-from-source).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen warns: choose **More info → Run anyway**. It installs per user, with no admin prompt.
 3. A short setup opens in the panel: try the shortcut, choose what to be called, connect your AI (with a live test), and optionally turn on voice. You can reopen it from the tray (**Set up Cadabra…**).
 
@@ -58,20 +58,22 @@ You need Node.js 24 (see `.nvmrc`), Rust stable (MSVC) and the Visual Studio C++
 npm ci
 npm run build:native   # the Rust helper
 npm start              # build the JS and run the app
-npm run dist           # → dist/CadabraOS-Setup-0.9.1.exe (NSIS, per-user)
+npm run dist           # → dist/CadabraOS-Setup-0.9.2.exe (NSIS, per-user)
 ```
 
 Handy dev modes: `npm run demo` (visual preview stage with every state), `npm run demo:live` (real windows, offline backend, no hooks) and `npm run screenshots`. [CONTRIBUTING.md](CONTRIBUTING.md) has the full command list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how it fits together.
 
 ## Setting up Claude
 
-Cadabra talks to Claude through **Claude Code**, Anthropic's free app. Cadabra doesn't include it; you install it once and Cadabra uses it in the background. The setup screen (in onboarding, or **Settings → AI accounts → Claude**) walks you through three steps:
+Cadabra talks to Claude through **Claude Code**, Anthropic's app. It's free to install; using Claude needs a Claude plan or an API key. Cadabra doesn't include it; you install it once and Cadabra uses it in the background. The setup screen (in onboarding, or **Settings → AI accounts → Claude**) walks you through three steps:
 
 1. **Get the Claude Code app.** Press **Install Claude Code**. Cadabra shows you exactly what it will run (Anthropic's official installer), and installs it for your Windows account when you agree. No administrator rights are needed, and it takes about a minute. If that doesn't work on your PC, open **Install it yourself instead**: it explains how to paste one line into Windows PowerShell, with a **Copy** button and a link to Anthropic's install page. Then press **Check again**.
 2. **Connect your Claude account.** Pick one:
    - **Use my Claude subscription** if you pay for Claude (Pro or Max). Press **Sign in** and finish the sign-in in the window Claude Code opens. There's no extra cost, but Anthropic's terms may restrict using a subscription through other apps, so this is at your own risk.
    - **Use an Anthropic API key** if you'd rather pay per use. Create a key at [console.anthropic.com](https://console.anthropic.com/settings/keys), paste it in and press **Save key**. Anthropic bills you for what you use, separately from any subscription. The key is stored encrypted on your PC and is only given to Claude Code, never to anything else.
 3. **Test it.** Press **Test**. Cadabra sends Claude a tiny message and shows the answer ("It works!").
+
+Web search (news, sports) currently works with the Claude subscription route, Codex, Gemini or Copilot. With an API key, Bedrock or Vertex, Claude can't search the web yet (weather still works).
 
 Already have Claude Code installed somewhere unusual? Use **Find it on my PC…** under "Install it yourself instead".
 

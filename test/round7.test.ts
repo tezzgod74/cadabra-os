@@ -95,16 +95,14 @@ describe('B. web access', () => {
     // The user's own words are fine.
     expect(checkWeb({ ...base, prompt: 'track order AB12CD34EF', tool: 'search', text: 'AB12CD34EF tracking' }).decision).toBe('allow');
   });
-  it('Claude (API key, via Claude Code --bare): the same web lockdown as the subscription mode', () => {
-    const off = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', bare: true });
-    expect(off[off.indexOf('--tools') + 1]).toBe('');
-    expect(off[off.indexOf('--permission-mode') + 1]).toBe('dontAsk');
-    expect(off[off.indexOf('--allowedTools') + 1]).toBe('mcp__cadabra__*');
-    const on = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', webSettingsFile: 's.json', bare: true });
-    expect(on[on.indexOf('--tools') + 1]).toBe('WebSearch,WebFetch');
-    expect(on[on.indexOf('--settings') + 1]).toBe('s.json');
-    // Web tools are never allow-listed: under dontAsk they're denied unless Cadabra's hook says yes.
-    expect(on[on.indexOf('--allowedTools') + 1]).toBe('mcp__cadabra__*');
+  it('Claude (API key, via Claude Code --bare): no web tools at all, since --bare skips the guard hook (0.9.2)', () => {
+    for (const web of [undefined, 's.json']) {
+      const a = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', webSettingsFile: web, bare: true });
+      expect(a[a.indexOf('--tools') + 1]).toBe('');
+      expect(a).not.toContain('--settings');
+      expect(a[a.indexOf('--permission-mode') + 1]).toBe('dontAsk');
+      expect(a[a.indexOf('--allowedTools') + 1]).toBe('mcp__cadabra__*');
+    }
   });
   it('Claude Code: web tools only via --tools, NOT allow-listed, approved by an HTTP hook (fail-closed)', () => {
     const a = claudeCliArgs({ mcpConfigFile: 'm', systemPromptFile: 'p', webSettingsFile: 's.json' });

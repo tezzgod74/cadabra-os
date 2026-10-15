@@ -38,7 +38,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   log({ in: msg });
   if (msg.type === 'control_request' && msg.request?.subtype === 'initialize') {
     if (process.env.FAKE_NO_INIT === '1') return;
-    const account = { tokenSource: process.env.FAKE_TOKEN_SOURCE ?? (keySource ? 'none' : 'claude.ai'), apiKeySource: process.env.FAKE_ACCOUNT_SOURCE ?? keySource, apiProvider: 'firstParty' };
+    // Real Claude Code shape: tokenSource 'none'; apiKeySource only when a key is in use.
+    const account = { tokenSource: process.env.FAKE_TOKEN_SOURCE ?? 'none', apiProvider: 'firstParty' };
+    const src = process.env.FAKE_ACCOUNT_SOURCE ?? keySource;
+    if (src) account.apiKeySource = src;
     out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response: { commands: [], agents: [], models: [{ value: 'default', displayName: 'Default' }], account } } });
     return;
   }

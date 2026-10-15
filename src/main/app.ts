@@ -913,7 +913,9 @@ export class CadabraApp {
     if (voiceTurn) parts.push('Voice turn: the user is listening, not reading — reply in 1-2 short spoken sentences, no markdown, no URLs/code; summarize results; end naturally (no "Anything else?").');
     // Round 10: never two replies in a row ending with a question.
     if (c?.lastReply && /\?\s*$/.test(c.lastReply.trim())) parts.push('Your previous reply ended with a question, so end this one without a question.');
-    if (!this.settings.get().webAccess) parts.push('Web access is OFF in Settings: you cannot search the web. If the user needs current information, say so and suggest turning on Settings → Web access.');
+    const st = this.settings.get();
+    if (!st.webAccess) parts.push('Web access is OFF in Settings: you cannot search the web. If the user needs current information, say so and suggest turning on Settings → Web access.');
+    else if (st.provider === 'claude' && st.claudeRoute !== 'claude-code') parts.push('Web search is not available with this Claude connection (API key, Bedrock or Vertex). If the user needs current information from the web, say so plainly; it works with the Claude subscription, Codex, Gemini or Copilot. Weather still works through your weather tool.');
     const persona = personaContext(this.settings.get().voice);
     if (persona) parts.push(persona);
     return parts.join(' ');
