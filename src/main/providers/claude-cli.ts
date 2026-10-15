@@ -90,6 +90,10 @@ export function claudeWebHookSettings(o: { url: string; token: string; sessionKe
       PreToolUse: [
         {
           matcher: CLAUDE_WEB_TOOLS.join('|'),
+          // Cadabra answers within WEB_HOOK_DEADLINE_MS (100 s), always before this timeout.
+          // No permission deny rules for Claude Code's pre-approved docs hosts: verified
+          // (0.9.4, fake API) that a deny rule beats a hook "allow", which would block
+          // fetches the user approved.
           hooks: [{ type: 'http', url: o.url, headers: { Authorization: `Bearer ${o.token}`, 'x-cadabra-session': o.sessionKey }, timeout: 120 }],
         },
       ],

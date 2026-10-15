@@ -60,6 +60,7 @@ import { greeting } from '../shared/smalltalk';
 import { runInTerminal } from './terminal-runner';
 import { execFile } from 'node:child_process';
 import os from 'node:os';
+import { ActivityRouter, type ActivityChannel } from './activity';
 import { spawn } from 'node:child_process';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -960,7 +961,7 @@ export class CadabraApp {
         },
         busy: (b) => {
           if (!b) this.setActing(false);
-          sendPanel(this.panel, { type: 'busy', busy: b });
+          sendPanel(this.panel, { type: 'busy', busy: b, run: this.tools.runOf('pc')?.id });
           this.refreshTray();
         },
         userEcho: (text, via) => sendPanel(this.panel, { type: 'user-echo', text, via }),
@@ -1253,6 +1254,25 @@ export class CadabraApp {
   // ---------------------------------------------------------- acting HUD ----
 
   private actingFull: Electron.Rectangle | null = null;
+  /** 0.9.4: progress captions go to the channel that produced them (activity.ts). */
+  private readonly activity = new ActivityRouter({
+    panel: (m) => sendPanel(this.panel, m),
+    remotePill: (caption) => {
+      if (!this.remotePillShown) return;
+      const nm = assistantName(this.settings.get().voice.wakeWord);
+      const text = caption ? `${nm} (WhatsApp) · ${caption.slice(0, 80)} · Esc stops it` : `${nm} (WhatsApp) is working · Esc stops it`;
+      this.overlays.send(screen.getPrimaryDisplay(), { type: 'remote-pill', on: true, text }, 10 * 60_000);
+    },
+  });
+  /** Only for the on-screen pill text (not a gate or routing flag). */
+  private remotePillShown = false;
+
+  /** Which channel a tool effect belongs to: the WhatsApp run's signal, else the active run. */
+  private fxChannel(signal?: AbortSignal): ActivityChannel {
+    const wa = this.tools?.runOf('whatsapp');
+    if (wa && (signal ? wa.signal === signal : this.tools.run === wa)) return 'whatsapp';
+    return 'pc';
+  }
   private lastActAt = 0;
   private expandTimer: NodeJS.Timeout | null = null;
 
@@ -1276,16 +1296,20 @@ export class CadabraApp {
     if (!panel || panel.isDestroyed()) return;
     if (on) {
       this.lastActAt = Date.now();
-      sendPanel(panel, { type: 'acting', on: true, caption });
+      this.activity.caption('pc', this.tools.runOf('pc')?.id, caption ?? '');
       if (this.actingFull || !this.panelVisible) return;
       const b = panel.getBounds();
       this.actingFull = b;
       panel.setBounds({ x: b.x, y: b.y, width: b.width, height: ACTING_HUD_HEIGHT }, false);
-    } else if (this.actingFull) {
-      const full = this.actingFull;
-      this.actingFull = null;
-      panel.setBounds(full, false);
-      sendPanel(panel, { type: 'acting', on: false });
+    } else {
+      if (this.actingFull) {
+        const full = this.actingFull;
+        this.actingFull = null;
+        panel.setBounds(full, false);
+      }
+      // 0.9.4: always clear a caption that was sent, even if the panel was hidden
+      // when it arrived (the HUD never collapsed, so actingFull was never set).
+      this.activity.clearPcCaption(this.tools.runOf('pc')?.id);
     }
   }
 
@@ -1294,7 +1318,9 @@ export class CadabraApp {
   private effects(): Effects {
     return {
       ghostMoveTo: async (p, caption, signal) => {
-        this.setActing(true, caption);
+        // 0.9.4: a WhatsApp run's caption goes to the WhatsApp pill, never the PC panel.
+        if (this.fxChannel(signal) === 'whatsapp') this.activity.caption('whatsapp', this.tools.runOf('whatsapp')?.id, caption);
+        else this.setActing(true, caption);
         const dip = this.toDip(p);
         const d = this.overlays.displayFor(dip);
         const reduced = this.reducedMotion();
@@ -1353,7 +1379,10 @@ export class CadabraApp {
           panel.setOpacity(1);
         };
       },
-      status: (text) => sendPanel(this.panel, { type: 'event', event: { type: 'status', text } }),
+      status: (text) => {
+        const ch = this.fxChannel();
+        this.activity.status(ch, this.tools.runOf(ch)?.id, text);
+      },
     };
   }
 
@@ -1540,6 +1569,7 @@ export class CadabraApp {
   private async handleRemote(text: string, ctx: { image?: { data: string; mimeType: string }; voice?: boolean; signal: AbortSignal }): Promise<string> {
     this.remoteReply = '';
     this.remoteImage = ctx.image;
+    this.remotePillShown = true;
     console.log('[remote] turn start');
     this.tray?.setToolTip('Cadabra — working on a WhatsApp request (Esc stops it)');
     // Round 12.5: a visible pill on the screen while the assistant works for WhatsApp.
@@ -1555,6 +1585,8 @@ export class CadabraApp {
     } finally {
       ctx.signal.removeEventListener('abort', onAbort);
       console.log('[remote] turn end');
+      this.activity.runEnd('whatsapp');
+      this.remotePillShown = false;
       this.overlays.broadcast({ type: 'remote-pill', on: false });
       this.refreshTray();
     }

@@ -222,7 +222,8 @@ export type PanelMessage =
   | { type: 'event'; event: ProviderEvent }
   | { type: 'confirm'; id: string; title: string; detail: string; risk: string; mono?: string; subtitle?: string; kind?: 'action' | 'question'; timeoutMs?: number; alwaysLabel?: string }
   | { type: 'confirm-resolved'; id: string; allowed: boolean }
-  | { type: 'busy'; busy: boolean }
+  | { type: 'busy'; busy: boolean; run?: number }
+  | { type: 'status'; text: string; run?: number }
   | { type: 'model'; provider: ProviderInfo; model: string }
   | { type: 'voice'; state: VoiceState; level?: number; partial?: string }
   | { type: 'notice'; text: string; tone?: 'info' | 'warn' }
@@ -234,7 +235,7 @@ export type PanelMessage =
   | { type: 'account-status'; provider: ProviderId; text: string }
   | { type: 'voice-health'; state: string; text: string; problem: boolean }
   | { type: 'onboarding' }
-  | { type: 'acting'; on: boolean; caption?: string }
+  | { type: 'acting'; on: boolean; caption?: string; run?: number }
   | { type: 'prefill'; text: string; submit?: boolean }
   | { type: 'tts-progress'; pct: number }
   | { type: 'voice-progress'; pct: number }

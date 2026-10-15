@@ -50,11 +50,20 @@ function tokenOk(header: string | undefined, token: string): boolean {
  */
 export type WebHook = (toolName: string, toolInput: any) => Promise<{ allow: boolean; reason?: string }>;
 
+/**
+ * 0.9.4 (REVIEW-0.9.3 W1): Cadabra always answers the hook with an explicit
+ * decision well before Claude Code's own hook timeout (120 s, claude-cli.ts).
+ * With no decision, Claude Code falls back to its own rules, which pre-approve
+ * WebFetch to ~70 documentation hosts. A slow guard (e.g. a confirm card left
+ * unanswered) therefore becomes an explicit deny at this deadline.
+ */
+export const WEB_HOOK_DEADLINE_MS = 100_000;
+
 export function hookResponse(d: { allow: boolean; reason?: string }) {
   return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: d.allow ? 'allow' : 'deny', permissionDecisionReason: d.reason ?? (d.allow ? 'Allowed by Cadabra' : 'Not allowed by Cadabra') } };
 }
 
-export async function startMcpHttp(defs: () => ToolDef[], version: string, checkSession: (key: string | undefined) => string | null = () => null, webHook?: WebHook): Promise<McpHttpHandle> {
+export async function startMcpHttp(defs: () => ToolDef[], version: string, checkSession: (key: string | undefined) => string | null = () => null, webHook?: WebHook, hookDeadlineMs = WEB_HOOK_DEADLINE_MS): Promise<McpHttpHandle> {
   const token = randomBytes(24).toString('base64url');
   const srv = http.createServer(async (req, res) => {
     try {
@@ -81,7 +90,18 @@ export async function startMcpHttp(defs: () => ToolDef[], version: string, check
           const sessionKey = typeof req.headers[SESSION_HEADER] === 'string' ? (req.headers[SESSION_HEADER] as string) : undefined;
           const bad = checkSession(sessionKey);
           if (bad) decision = { allow: false, reason: bad };
-          else if (webHook) decision = await webHook(String(body?.tool_name ?? ''), body?.tool_input ?? {});
+          else if (webHook) {
+            let timer: NodeJS.Timeout | undefined;
+            const late = new Promise<{ allow: boolean; reason: string }>((resolve) => {
+              timer = setTimeout(() => resolve({ allow: false, reason: 'Cadabra didn’t approve this in time, so it was not allowed.' }), hookDeadlineMs);
+            });
+            try {
+              decision = await Promise.race([webHook(String(body?.tool_name ?? ''), body?.tool_input ?? {}), late]);
+            } finally {
+              clearTimeout(timer);
+            }
+            if (typeof decision?.allow !== 'boolean') decision = { allow: false, reason: 'Not allowed by Cadabra' };
+          }
         } catch {
           /* deny */
         }

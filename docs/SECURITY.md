@@ -60,7 +60,7 @@ The backends get no raw shell. `run_in_terminal` opens a visible terminal and ru
 
 ## Web, email and WhatsApp
 
-- **Web:** every web search and fetch is checked first. Anything that looks private (codes, card numbers, keys) is refused, and screen text in a search or address needs a confirm. Pages are treated as data.
+- **Web:** every web search and fetch is checked first. Cadabra's check (Claude Code's PreToolUse hook) always answers with an explicit allow or deny within 100 seconds, before Claude Code's 120-second hook timeout, so Claude Code's own built-in pre-approved hosts never apply in its place. With Claude, each fetch also makes Claude Code send the page's domain (domain only) to Anthropic for its own safety check. Anything that looks private (codes, card numbers, keys) is refused, and screen text in a search or address needs a confirm. Pages are treated as data.
 - **Email:** Gmail access is read-only (`gmail.readonly`, or IMAP opened with EXAMINE). Links are stripped. After an email has been read in a run, every action in that run needs a confirm. Disconnect revokes the token at Google.
 - **WhatsApp:** one paired owner chat only; other senders are ignored. Risky actions are confirmed in the chat with one-time numeric codes ("yes" alone doesn't count). Messages older than 10 minutes aren't acted on. Media is downloaded only from the pinned media host, redirects are refused, and uploaded screenshots are deleted after sending. A pill on the PC shows when a remote request is running, and Esc at the PC or "stop" in the chat cancels it. WhatsApp agent chats are **not end-to-end encrypted**; the setup screen says so.
 

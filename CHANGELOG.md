@@ -4,6 +4,12 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.4
+
+- **Fixed: a stale status line in the PC panel after a WhatsApp request.** Progress captions from a WhatsApp run (for example "Checking the note was saved") were written into the PC panel's status/HUD and never cleared, so every later summon showed them. Captions are now per channel: WhatsApp runs update only the on-screen WhatsApp pill, PC runs only the panel. Every run end clears its own caption (even if the panel was hidden when it was set), an idle summon starts with no status, and any status or caption from an older run is ignored.
+- **Web guard deadline:** Cadabra's web check for Claude Code always answers with an explicit allow or deny within 100 seconds (Claude Code waits up to 120), so Claude Code's own pre-approved documentation hosts can never be fetched just because Cadabra didn't answer. (Deny rules for those hosts were tested and not added: they would also block pages the user approved.)
+- **Privacy note:** with Claude, each web page it fetches also sends that page's domain to Anthropic for Claude Code's own safety check. README, SECURITY.md and Settings → Web access now say so.
+
 ## 0.9.3
 
 - **Web search with your Claude API key:** a new switch, in Settings → Web access and in the Claude setup's Connect step, on by default. With it on, Claude with an API key (or Bedrock / Vertex) can search and read the web, and Cadabra checks every search first. Anthropic bills web searches per search. To make Cadabra's check possible, Claude Code runs without `--bare` in this case; everything else stays locked: a private empty settings folder, no other credentials in its environment, only Cadabra's tools plus web search and fetch, no user or project settings, memory files, plugins, MCP servers or hooks, an empty working folder, and the "is it really your API key?" check before anything is sent. With the switch off, nothing changes from 0.9.2.
