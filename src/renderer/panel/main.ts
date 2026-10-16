@@ -66,6 +66,7 @@ interface Api {
   waPair?(): Promise<{ code: string } | null>;
   waUnpair?(): Promise<WaStatus | null>;
   waAutonomy?(a: string): Promise<WaStatus | null>;
+  waPower?(p: { wakeDisplay?: boolean; keepAwake?: boolean }): Promise<WaStatus | null>;
   emailSetBodies?(on: boolean): Promise<EmailStatus | null>;
   emailOpenHelp?(which: string): void;
   emailConnectOAuth?(clientIdOrJson: string, clientSecret: string | null): Promise<{ ok: boolean; error?: string; status?: EmailStatus } | null>;
@@ -80,6 +81,8 @@ interface WaStatus {
   status: string;
   autonomy: string;
   encryption: boolean;
+  wakeDisplay?: boolean;
+  keepAwake?: boolean;
 }
 
 interface EmailStatus {
@@ -124,7 +127,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.7',
+    version: '0.9.8',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -1785,7 +1788,9 @@ async function renderWhatsApp(box: HTMLDivElement, provider: string, notice = ''
     </details>
     ${st.hasToken ? `<div class="s-row"><div class="s-label">Paired phone<small>${st.paired ? 'Paired with your WhatsApp.' : 'Not paired yet.'}</small></div><div class="sc-btns"><button type="button" class="btn ghost" id="wa-pair">${st.paired ? 'Pair again' : 'Show pairing code'}</button>${st.paired ? '<button type="button" class="btn ghost" id="wa-unpair">Unpair</button>' : ''}</div></div>
     <div class="s-row"><div class="s-label">When ${nm} acts from WhatsApp
-      <select id="wa-auto"><option value="risky">Ask only for risky actions (code in the chat)</option><option value="every">Ask before acting (every action)</option><option value="none">Don’t ask</option></select></div></div>` : ''}
+      <select id="wa-auto"><option value="risky">Ask only for risky actions (code in the chat)</option><option value="every">Ask before acting (every action)</option><option value="none">Don’t ask</option></select></div></div>
+    <div class="s-row"><div class="s-label">Wake the display for WhatsApp requests<small>If the screen has gone dark, ${nm} turns it back on (and keeps it on during the request) so it can see and act. A locked PC stays locked: ${nm} can’t see or use it, but can still make announcements.</small></div><button type="button" class="toggle ${st.wakeDisplay !== false ? 'on' : ''}" role="switch" aria-checked="${st.wakeDisplay !== false}" id="wa-wake"></button></div>
+    <div class="s-row"><div class="s-label">Keep this PC awake while remote access is on<small>Stops Windows from going to sleep (the display can still turn off), so WhatsApp messages reach ${nm}. Uses more power. A sleeping PC can’t receive messages.</small></div><button type="button" class="toggle ${st.keepAwake ? 'on' : ''}" role="switch" aria-checked="${!!st.keepAwake}" id="wa-awake"></button></div>` : ''}
     <p class="s-note">Privacy: chats with WhatsApp agents are <b>not end-to-end encrypted</b>. Meta’s agent service keeps messages and media for up to 30 days. ${nm} only sends a (compressed) picture of your screen when you ask for one, and deletes it from the service right after. You run this agent yourself, so under WhatsApp’s third-party agent terms you are its “agent provider” and responsible for what it does; use it only for your own PC and accounts. Say “stop” in the chat, or press Esc at the PC, to stop ${nm}.</p>
     <p class="s-note em-msg" id="wa-msg"></p>`;
   const msg = box.querySelector<HTMLElement>('#wa-msg')!;
@@ -1827,6 +1832,19 @@ async function renderWhatsApp(box: HTMLDivElement, provider: string, notice = ''
       await api.waUnpair?.();
       void renderWhatsApp(box, provider, 'Unpaired.', nm);
     };
+  for (const [id, key] of [
+    ['#wa-wake', 'wakeDisplay'],
+    ['#wa-awake', 'keepAwake'],
+  ] as const) {
+    const t = box.querySelector<HTMLButtonElement>(id);
+    if (t)
+      t.onclick = async () => {
+        const on = !t.classList.contains('on');
+        t.classList.toggle('on', on);
+        t.setAttribute('aria-checked', String(on));
+        await api.waPower?.({ [key]: on });
+      };
+  }
   const auto = box.querySelector<HTMLSelectElement>('#wa-auto');
   if (auto) {
     auto.value = st.autonomy;

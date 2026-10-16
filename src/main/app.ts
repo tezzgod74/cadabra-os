@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, screen, shell, systemPreferences, Tray, type Display } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, powerSaveBlocker, safeStorage, screen, shell, systemPreferences, Tray, type Display } from 'electron';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,6 +31,7 @@ import { HEALTH_TEXT, healthIsProblem, type VoiceHealth } from './voice/health';
 import { personaContext, voiceDialect } from '../shared/persona';
 import { Greeter, inQuietHours } from './greeter';
 import { Announcer, announceReply } from './announce';
+import { LOCKED_REPLY, RemotePresence } from './remote-presence';
 import { addDuckRecords, readDuckRecords, removeDuckRecords } from './duck-records';
 import { parseLocalAnnouncement } from '../shared/announce';
 import { WhatsAppClient } from './whatsapp/client';
@@ -185,7 +186,8 @@ export class CadabraApp {
         const s = this.settings.get();
         return (!this.opts.demoLive || !!this.opts.greetTest) && !this.opts.e2e && !this.opts.selftest && s.voice.enabled && !s.paused && s.voice.speakReplies !== 'never' && this.voice instanceof SherpaVoiceEngine && !this.sessionLocked;
       },
-      userBusy: () => this.panelVisible || this.conv.busy || this.voiceState === 'transcribing' || this.voiceState === 'followup',
+      // 0.9.8: also while a WhatsApp request runs (waking the display looks like "back at the PC").
+      userBusy: () => this.panelVisible || this.conv.busy || !!this.remote?.busy || this.voiceState === 'transcribing' || this.voiceState === 'followup',
       presence: () => this.session.presence(),
       micUsers: () => this.micUsers(),
       speak: async (t) => {
@@ -327,6 +329,9 @@ export class CadabraApp {
     this.skills.onChange(() => sendPanel(this.panel, { type: 'skills-changed' }));
     this.tools.skills = this.skills;
     this.tools.announcer = this.announcer;
+    this.tools.presence = { screen: () => this.presence.ensureScreen(), state: async () => (this.helper ? this.helper.desktopState().catch(() => null) : null) };
+    this.applyKeepAwake();
+    this.settings.onChange(() => this.applyKeepAwake());
     const models = resourcePath('models');
     this.voice = fs.existsSync(path.join(models, 'kws'))
       ? new SherpaVoiceEngine({ modelsDir: models, userData: app.getPath('userData'), settings: () => this.settings.get().voice, asrDirOverride: process.env.CADABRA_ASR_DIR, openaiKey: () => this.settings.getSecret('openaiApiKey') })
@@ -1300,6 +1305,36 @@ export class CadabraApp {
   private remotePillShown = false;
   skills!: SkillRegistry;
 
+  // ------------------------------------------------- remote presence (0.9.8)
+  /** Is the screen usable for a WhatsApp request? Wakes a dark display, never unlocks. */
+  readonly presence = new RemotePresence({
+    desktopState: async () => (this.helper ? this.helper.desktopState() : null),
+    wakeDisplay: async () => void (await this.helper?.wakeDisplay()),
+    holdDisplay: () => {
+      const id = powerSaveBlocker.start('prevent-display-sleep');
+      return () => {
+        if (powerSaveBlocker.isStarted(id)) powerSaveBlocker.stop(id);
+      };
+    },
+    wakeEnabled: () => this.settings.get().remote.wakeDisplay !== false,
+    log: (l) => console.log(l),
+  });
+  private keepAwakeId: number | null = null;
+
+  /** "Keep this PC awake while remote access is on" (prevents sleep; the display may still turn off). */
+  private applyKeepAwake(): void {
+    const r = this.settings.get().remote;
+    const want = r.enabled && r.keepAwake;
+    if (want && this.keepAwakeId == null) {
+      this.keepAwakeId = powerSaveBlocker.start('prevent-app-suspension');
+      console.log('[remote] keeping the PC awake while remote access is on');
+    } else if (!want && this.keepAwakeId != null) {
+      if (powerSaveBlocker.isStarted(this.keepAwakeId)) powerSaveBlocker.stop(this.keepAwakeId);
+      this.keepAwakeId = null;
+      console.log('[remote] no longer keeping the PC awake');
+    }
+  }
+
   // ---------------------------------------------------------- announcements (0.9.6)
   readonly announcer = new Announcer({
     settings: () => this.settings.get().announcements,
@@ -1703,6 +1738,15 @@ export class CadabraApp {
     this.remoteImage = ctx.image;
     this.remotePillShown = true;
     console.log('[remote] turn start');
+    // 0.9.8: a locked PC can't be seen or used (never unlocked); a dark display is
+    // woken and kept on for this request.
+    const ready = await this.presence.beginTurn();
+    if (!ready.ok && ready.code === 'desktop-locked') {
+      console.log('[remote] PC locked: not acting (told the phone)');
+      this.remotePillShown = false;
+      this.presence.endTurn();
+      return LOCKED_REPLY;
+    }
     this.tray?.setToolTip('Cadabra — working on a WhatsApp request (Esc stops it)');
     // Round 12.5: a visible pill on the screen while the assistant works for WhatsApp.
     const nm = assistantName(this.settings.get().voice.wakeWord);
@@ -1717,6 +1761,7 @@ export class CadabraApp {
     } finally {
       ctx.signal.removeEventListener('abort', onAbort);
       console.log('[remote] turn end');
+      this.presence.endTurn();
       this.activity.runEnd('whatsapp');
       this.remotePillShown = false;
       this.overlays.broadcast({ type: 'remote-pill', on: false });
@@ -1738,7 +1783,7 @@ export class CadabraApp {
   /** Settings → WhatsApp status (never the token or the owner id). */
   waStatus() {
     const r = this.settings.get().remote;
-    return { enabled: r.enabled, hasToken: this.settings.hasSecret('whatsappToken'), paired: !!r.pairedFrom, status: this.remote.status, autonomy: r.autonomy, encryption: safeStorage.isEncryptionAvailable() };
+    return { enabled: r.enabled, hasToken: this.settings.hasSecret('whatsappToken'), paired: !!r.pairedFrom, status: this.remote.status, autonomy: r.autonomy, encryption: safeStorage.isEncryptionAvailable(), wakeDisplay: r.wakeDisplay !== false, keepAwake: !!r.keepAwake };
   }
 
   /** Round 8: Settings → Email status (the address is shown only in the user's own Settings). */
@@ -2421,6 +2466,12 @@ export class CadabraApp {
     ipcMain.handle('wa:unpair', (e) => {
       if (!fromPanel(e)) return null;
       this.remote.unpair();
+      return this.waStatus();
+    });
+    ipcMain.handle('wa:power', (e, p: { wakeDisplay?: boolean; keepAwake?: boolean }) => {
+      if (!fromPanel(e) || !p || typeof p !== 'object') return null;
+      const r = this.settings.get().remote;
+      this.settings.update({ remote: { ...r, ...(typeof p.wakeDisplay === 'boolean' ? { wakeDisplay: p.wakeDisplay } : {}), ...(typeof p.keepAwake === 'boolean' ? { keepAwake: p.keepAwake } : {}) } });
       return this.waStatus();
     });
     ipcMain.handle('wa:autonomy', (e, a: string) => {

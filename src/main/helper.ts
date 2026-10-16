@@ -263,6 +263,10 @@ export class HelperClient extends EventEmitter {
   /** Round 8: "lock my PC" (LockWorkStation, exactly like Win+L). */
   lockWorkstation = () => this.call('lock_workstation', {}, 3000);
   /** Round 10.5: other apps' audio sessions with their peak meter (read-only). */
+  /** 0.9.8: locked / input desktop / display power / foreground / monitor count (read-only). */
+  desktopState = () => this.call<{ locked: boolean | null; inputDesktop: string | null; display: 'on' | 'off' | 'dimmed' | 'unknown'; foreground: boolean; monitors: number; sessionFlags: number | null }>('desktop_state', {}, 3000);
+  /** 0.9.8: wake a dark display (display-required + one zero-distance mouse move). */
+  wakeDisplay = () => this.call<{ nudged: boolean }>('wake_display', {}, 3000);
   /** 0.9.6: lower other apps' audio sessions (restore with unduckAudio). */
   duckAudio = (exclude: number[], factor: number) => this.call<{ ducked: DuckedSession[] }>('duck_audio', { exclude, factor }, 4000);
   /** Restores each session only if it's still at the ducked level (0.9.7, A2). */

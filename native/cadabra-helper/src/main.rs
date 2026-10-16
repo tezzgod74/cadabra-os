@@ -214,6 +214,8 @@ fn dispatch(method: &str, p: &Value) -> RpcResult {
             session::audio_sessions(&ex)
         }
         "lock_workstation" => session::lock_workstation(),
+        "desktop_state" => session::desktop_state(),
+        "wake_display" => session::wake_display(),
         "duck_audio" => {
             let ex: Vec<u32> = p.get("exclude").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_u64().map(|n| n as u32)).collect()).unwrap_or_default();
             let factor = p.get("factor").and_then(|v| v.as_f64()).unwrap_or(0.25) as f32;

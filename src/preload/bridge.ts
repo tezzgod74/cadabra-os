@@ -77,6 +77,7 @@ if (role === 'mic') {
     waPair: () => ipcRenderer.invoke('wa:pair'),
     waUnpair: () => ipcRenderer.invoke('wa:unpair'),
     waAutonomy: (a: string) => ipcRenderer.invoke('wa:autonomy', String(a)),
+    waPower: (p: { wakeDisplay?: boolean; keepAwake?: boolean }) => ipcRenderer.invoke('wa:power', { wakeDisplay: p?.wakeDisplay, keepAwake: p?.keepAwake }),
     emailSetBodies: (on: boolean) => ipcRenderer.invoke('email:set-bodies', !!on),
     emailOpenHelp: (which: string) => ipcRenderer.send('email:open-help', String(which)),
     emailConnectOAuth: (clientIdOrJson: string, clientSecret: string | null) => ipcRenderer.invoke('email:connect-oauth', String(clientIdOrJson), clientSecret == null ? null : String(clientSecret)),

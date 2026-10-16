@@ -7,7 +7,7 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
 > [!WARNING]
-> **Public beta (0.9.7).** Cadabra OS works day to day for its developers, but it's a beta: expect rough edges.
+> **Public beta (0.9.8).** Cadabra OS works day to day for its developers, but it's a beta: expect rough edges.
 >
 > - **Tested:** Windows 11 x64; Claude with a Claude subscription (through Claude Code); voice, wake word and the natural voices; WhatsApp; Gmail with your own Google key; skills; announcements.
 > - **Not tested yet** (no accounts or hardware to try them): OpenAI Codex, Gemini, GitHub Copilot, Claude with an API key (only tested against a fake server so far), including web search, Claude via Bedrock or Vertex, Gmail app passwords, the Southern cloud voices, Windows 10, ARM64 PCs, non-US keyboards and input methods, and more. **[Help us test](#help-us-test).**
@@ -54,7 +54,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 ## Install
 
-1. Download `CadabraOS-Setup-0.9.7.exe` from the releases page, or [build it yourself](#build-from-source).
+1. Download `CadabraOS-Setup-0.9.8.exe` from the releases page, or [build it yourself](#build-from-source).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen warns: choose **More info → Run anyway**. It installs per user, with no admin prompt.
 3. A short setup opens in the panel: try the shortcut, choose what to be called, connect your AI (with a live test), and optionally turn on voice. You can reopen it from the tray (**Set up Cadabra…**).
 
@@ -68,7 +68,7 @@ You need Node.js 24 (see `.nvmrc`), Rust stable (MSVC) and the Visual Studio C++
 npm ci
 npm run build:native   # the Rust helper
 npm start              # build the JS and run the app
-npm run dist           # → dist/CadabraOS-Setup-0.9.7.exe (NSIS, per-user)
+npm run dist           # → dist/CadabraOS-Setup-0.9.8.exe (NSIS, per-user)
 ```
 
 Handy dev modes: `npm run demo` (visual preview stage with every state), `npm run demo:live` (real windows, offline backend, no hooks) and `npm run screenshots`. [CONTRIBUTING.md](CONTRIBUTING.md) has the full command list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how it fits together.
@@ -185,6 +185,13 @@ What to know:
 - If the PC is locked, Cadabra says so and does nothing. It can't unlock it.
 - **Privacy:** WhatsApp agent chats are **not end-to-end encrypted**. Meta's agent service processes them and keeps messages and media for up to 30 days, and your messages also go to your chosen AI.
 - **You are the agent provider.** You run this agent yourself, so under WhatsApp's agent terms you are responsible for what it does. Use it only for your own PC and accounts.
+
+### Using Cadabra while you're away
+
+- **Display off is fine.** If the screen has gone dark, Cadabra turns it back on for a WhatsApp request (one invisible, zero-distance mouse nudge) and keeps it on until the request is done. Turn this off in Settings → WhatsApp → *Wake the display for WhatsApp requests*.
+- **A locked PC stays locked.** Cadabra never unlocks Windows, so it can't see or use a locked screen. WhatsApp tells you so; announcements still work.
+- **If you want remote control while you're away**, Windows must stay unlocked. The relevant Windows settings are **Settings → Accounts → Sign-in options → "If you've been away, when should Windows require you to sign in again?"** (choose *Never*), the screen saver's "On resume, display logon screen" option, and **Dynamic lock**. **The trade-off is real: anyone at your PC can use it while it's unlocked.** Only do this somewhere you trust.
+- **Sleep:** a PC that's asleep can't receive WhatsApp messages; nothing can wake it remotely. Either set Windows' sleep to *Never* (Settings → System → Power), or turn on Settings → WhatsApp → *Keep this PC awake while remote access is on*. That stops sleep while letting the display turn off, and uses more power.
 
 ## Gmail (read-only)
 

@@ -343,7 +343,7 @@ describe('Export diagnostics: redaction', () => {
     expect(t).not.toMatch(/@example\.com|sk-ant-|AIza|abcdefghijklmnopqrstuv|0123456789abcdef0123/);
     if (os.userInfo().username.length >= 3) expect(t).not.toContain(os.userInfo().username);
     expect(redact(os.homedir())).not.toContain(path.basename(os.homedir()));
-    const bundle = diagnosticsText({ version: '0.9.7', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
+    const bundle = diagnosticsText({ version: '0.9.8', settings: { displayName: 'Alex', provider: 'claude' }, providers: [{ id: 'codex', auth: { ok: true, detail: 'Signed in to ChatGPT (Plus)' } }], helper: 'ok', voice: 'idle', displayName: 'Alex' });
     expect(bundle).not.toContain('Alex');
     expect(bundle).toContain('Signed in to ChatGPT (Plus)');
   });

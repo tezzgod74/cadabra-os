@@ -38,7 +38,7 @@ export const DEFAULT_SETTINGS: Settings = {
   micNotCall: [],
   greetings: { enabled: true, awayMinutes: 20, quietStart: '', quietEnd: '', recent: [] },
   email: { mode: 'none', address: '', clientId: '', allowBodies: true },
-  remote: { enabled: false, autonomy: 'risky', offset: null, pairedFrom: '' },
+  remote: { enabled: false, autonomy: 'risky', offset: null, pairedFrom: '', wakeDisplay: true, keepAwake: false },
 };
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -83,6 +83,8 @@ export function mergeSettings(raw: unknown, defaults: Settings = DEFAULT_SETTING
     if (r.autonomy === 'risky' || r.autonomy === 'every' || r.autonomy === 'none') out.remote.autonomy = r.autonomy;
     if (typeof r.offset === 'number' && Number.isSafeInteger(r.offset) && r.offset >= 0) out.remote.offset = r.offset;
     if (typeof r.pairedFrom === 'string' && /^user:[\w-]{1,64}$/.test(r.pairedFrom)) out.remote.pairedFrom = r.pairedFrom;
+    if (typeof r.wakeDisplay === 'boolean') out.remote.wakeDisplay = r.wakeDisplay;
+    if (typeof r.keepAwake === 'boolean') out.remote.keepAwake = r.keepAwake;
   }
   if (isObj(raw.email)) {
     const e = raw.email;

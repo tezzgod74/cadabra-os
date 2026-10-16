@@ -161,6 +161,10 @@ export interface RemoteSettings {
   offset: number | null;
   /** The paired owner's participant id ('' = not paired). Never shown or logged. Not renderer-writable. */
   pairedFrom: string;
+  /** 0.9.8: wake a dark display for remote requests and keep it on during the request (default on). */
+  wakeDisplay: boolean;
+  /** 0.9.8: keep the PC from sleeping while remote access is on (default off; the display may still turn off). */
+  keepAwake: boolean;
 }
 
 export interface EmailSettings {

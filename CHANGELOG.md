@@ -4,6 +4,15 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.8
+
+- **Fixed: WhatsApp requests failing while you're away.** With the display off (and, on some PCs, the monitor dropped from the desktop entirely), screenshots and screen reading failed at once and were logged only as "error". Cadabra now wakes the display for a WhatsApp request (resetting the display timer plus one zero-distance mouse nudge), waits up to 3 s for it, and keeps it on until the request is done.
+- **Locked PCs:** detected properly (session lock state plus which desktop has input). A locked PC is never unlocked; WhatsApp gets a clear answer, and announcements still work.
+- **New settings (Settings → WhatsApp):** *Wake the display for WhatsApp requests* (on) and *Keep this PC awake while remote access is on* (off; prevents sleep, uses more power).
+- **Diagnostics:** failing tools now log a reason (`desktop-locked`, `capture-failed:display-off`, `capture-failed:no-display`, `no-foreground-window`, `helper-error`).
+- A display being woken no longer counts as "you're back" for greetings during a WhatsApp request.
+- Docs: "Using Cadabra while you're away" in the README.
+
 ## 0.9.7
 
 - **Skills, safer identity:** a skill's on/off state now belongs to its folder, not the name inside SKILL.md. A newly appearing folder never inherits another skill's state; two folders with the same name in the same place are both blocked (Settings says why) until one is renamed; and your own skill replaces a built-in one only when yours is switched on.

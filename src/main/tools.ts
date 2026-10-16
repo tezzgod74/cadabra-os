@@ -2,6 +2,7 @@
 // Exposed to Claude through an in-process SDK MCP server and to the CLI
 // backends through a localhost HTTP MCP server (see mcp-server.ts).
 
+import { toolFailureCode, type DesktopState, type ScreenReady } from './remote-presence';
 import { z } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { imagePointInFrame, imageRectToPhysical, imageToPhysical, physicalToImage, type CaptureFrame } from '../shared/coords';
@@ -901,6 +902,16 @@ export class ToolHost {
         const t0 = Date.now();
         const run = this.run;
         let res: CallToolResult;
+        // 0.9.8: a remote request can't see the screen of a locked PC (it's never
+        // unlocked); a dark display is woken before any screen tool runs.
+        if (run?.channel === 'whatsapp' && this.presence && ToolHost.SCREEN_TOOLS.has(d.name)) {
+          const ready = await this.presence.screen().catch(() => null);
+          if (ready && !ready.ok) {
+            console.log(`[tool] ${d.name}: ${ready.code} (${Date.now() - t0} ms)`);
+            (run.toolResults ??= []).push({ name: d.name, ok: false, code: ready.code });
+            return { ...text(`Not done (${ready.code}): ${ready.message}`, true), _meta: { code: ready.code } };
+          }
+        }
         try {
           res = await d.handler(args);
         } catch (e) {
@@ -908,7 +919,13 @@ export class ToolHost {
           if (run) (run.toolResults ??= []).push({ name: d.name, ok: false, code: 'threw' });
           throw e;
         }
-        const code = res.isError ? String((res._meta as { code?: string } | undefined)?.code ?? 'error') : 'ok';
+        let code = res.isError ? String((res._meta as { code?: string } | undefined)?.code ?? 'error') : 'ok';
+        // 0.9.8: a plain reason instead of a bare "error" (display off, locked, no window, helper).
+        if (code === 'error' && this.presence) {
+          const msg = String((res.content?.[0] as { text?: string } | undefined)?.text ?? '');
+          code = toolFailureCode(d.name, msg, await this.presence.state().catch(() => null));
+          res = { ...res, _meta: { ...(res._meta ?? {}), code } };
+        }
         console.log(`[tool] ${d.name}: ${code} (${Date.now() - t0} ms)`);
         if (run) (run.toolResults ??= []).push({ name: d.name, ok: !res.isError, code });
         return res;
@@ -920,6 +937,15 @@ export class ToolHost {
   system: SystemApi | null = null;
   /** Round 12: the WhatsApp channel (set by the app). */
   remote: { sendScreenshot(caption: string): Promise<string> } | null = null;
+  /**
+   * 0.9.8: is the screen usable for a remote request (not locked; a dark display
+   * is woken first)? And the raw desktop state, for reason codes. Set by the app.
+   */
+  presence: { screen(): Promise<ScreenReady>; state(): Promise<DesktopState | null> } | null = null;
+
+  /** 0.9.8: tools that need to see or use the screen. */
+  static readonly SCREEN_TOOLS = new Set(['see_screen', 'read_ui', 'highlight', 'click', 'type_text', 'press_keys', 'scroll', 'send_screenshot', 'focus_app', 'launch_app']);
+
   /** 0.9.6: announcements (set by the app; src/main/announce.ts). */
   announcer: { announce(text: string, source: 'tool', signal?: AbortSignal): Promise<{ ok: boolean; reason?: string; truncated?: boolean }> } | null = null;
 

@@ -132,6 +132,14 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] Voice notes and pictures work. *"Show me my screen"* sends a screenshot only when asked.
 - [ ] With the PC locked, it says so and does nothing.
 
+### Using Cadabra while you're away
+
+- [ ] Let the display turn off (or turn the monitor's power-saving on), then from WhatsApp ask *"what's on my screen?"*. The display comes back on, Cadabra answers, and the display can turn off again afterwards. Diagnostics show `[remote] waking the display …` and `[remote] display on after … ms`.
+- [ ] Lock the PC (Win+L), then ask the same: WhatsApp answers that the PC is locked and Cadabra can't see or use the screen. Diagnostics show `[remote] PC locked: not acting`, and no `[tool] …` lines for that request. An *"Announcement: …"* still plays.
+- [ ] With *"require sign-in after the display turns off"* on, let the display turn off by itself, then send a request: same as locked.
+- [ ] Settings → WhatsApp → *Keep this PC awake while remote access is on*: Windows doesn't go to sleep (check Power settings / `powercfg /requests`), and the display still turns off.
+- [ ] Any failing tool in diagnostics now shows a reason (`desktop-locked`, `capture-failed:display-off`, `capture-failed:no-display`, `no-foreground-window`, `helper-error`) instead of just `error`.
+
 ## Reporting a problem
 
 1. Note the step, what happened and the time.

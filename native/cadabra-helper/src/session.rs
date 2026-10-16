@@ -21,6 +21,10 @@ use windows::Win32::System::RemoteDesktop::{WTSRegisterSessionNotification, NOTI
 use windows::Win32::System::Shutdown::LockWorkStation;
 use windows::Win32::UI::Shell::{SHQueryUserNotificationState, QUERY_USER_NOTIFICATION_STATE};
 use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::Win32::System::Power::{RegisterPowerSettingNotification, SetThreadExecutionState, ES_DISPLAY_REQUIRED, POWERBROADCAST_SETTING};
+use windows::Win32::System::RemoteDesktop::{WTSFreeMemory, WTSQuerySessionInformationW, WTSSessionInfoEx, WTSINFOEXW, WTS_CURRENT_SESSION};
+use windows::Win32::System::StationsAndDesktops::{CloseDesktop, GetUserObjectInformationW, OpenInputDesktop, DESKTOP_CONTROL_FLAGS, DESKTOP_READOBJECTS, UOI_NAME};
+use windows::Win32::System::SystemServices::GUID_CONSOLE_DISPLAY_STATE;
 
 const WTS_CONSOLE_CONNECT: usize = 0x1;
 const WTS_SESSION_LOGON: usize = 0x5;
@@ -40,7 +44,30 @@ pub fn session_kind(wparam: usize) -> Option<&'static str> {
     }
 }
 
+/// 0.9.8: the console display's power state from GUID_CONSOLE_DISPLAY_STATE
+/// (0 off, 1 on, 2 dimmed; -1 = not reported yet).
+static DISPLAY_STATE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+
+/// Display state number → name (pure; tested).
+pub fn display_state_name(v: i32) -> &'static str {
+    match v {
+        0 => "off",
+        1 => "on",
+        2 => "dimmed",
+        _ => "unknown",
+    }
+}
+
 unsafe extern "system" fn wndproc(h: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LRESULT {
+    if msg == WM_POWERBROADCAST && w.0 as u32 == PBT_POWERSETTINGCHANGE && l.0 != 0 {
+        let s = &*(l.0 as *const POWERBROADCAST_SETTING);
+        if s.PowerSetting == GUID_CONSOLE_DISPLAY_STATE && s.DataLength >= 1 {
+            let v = s.Data[0] as i32;
+            DISPLAY_STATE.store(v, std::sync::atomic::Ordering::Relaxed);
+            crate::emit(json!({"event": "display", "state": display_state_name(v)}));
+        }
+        return LRESULT(1);
+    }
     if msg == WM_WTSSESSION_CHANGE {
         if let Some(kind) = session_kind(w.0) {
             crate::emit(json!({"event": "session", "kind": kind}));
@@ -63,6 +90,8 @@ pub fn start() {
                 return;
             }
         };
+        // 0.9.8: display on / off / dimmed (the current state is sent right away).
+        let _ = RegisterPowerSettingNotification(HANDLE(hwnd.0), &GUID_CONSOLE_DISPLAY_STATE, DEVICE_NOTIFY_WINDOW_HANDLE);
         if let Err(e) = WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION) {
             crate::emit(json!({"event": "session", "kind": "watch-failed", "message": e.to_string()}));
             return;
@@ -312,6 +341,97 @@ pub fn restore_on_exit() {
     let _ = unduck(None);
 }
 
+// ------------------------------------------------------- desktop state --
+// 0.9.8: can Cadabra see and use the screen right now? Read-only checks:
+// - the session's lock flag (WTSQuerySessionInformation / WTSSessionInfoEx);
+// - which desktop receives input (OpenInputDesktop: "Default" = the user's
+//   desktop; "Winlogon" or access denied = the lock screen or a secure prompt);
+// - the console display's power state (on / off / dimmed);
+// - whether there is a foreground window at all.
+
+/// Pure: from the raw signals, is the PC locked (or on a secure desktop)?
+/// `session_flags`: 0 = WTS_SESSIONSTATE_LOCK, 1 = unlocked, -1/None = unknown.
+pub fn locked_from(session_flags: Option<i32>, input_desktop: Option<&str>) -> Option<bool> {
+    if session_flags == Some(0) {
+        return Some(true);
+    }
+    match input_desktop {
+        Some(d) if d.eq_ignore_ascii_case("default") => Some(session_flags == Some(0)),
+        Some(_) => Some(true),
+        None => {
+            if session_flags == Some(1) {
+                Some(false)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn session_flags() -> Option<i32> {
+    unsafe {
+        let mut buf = windows::core::PWSTR::null();
+        let mut bytes = 0u32;
+        WTSQuerySessionInformationW(None, WTS_CURRENT_SESSION, WTSSessionInfoEx, &mut buf, &mut bytes).ok()?;
+        if buf.is_null() {
+            return None;
+        }
+        let info = &*(buf.0 as *const WTSINFOEXW);
+        let flags = if info.Level == 1 { Some(info.Data.WTSInfoExLevel1.SessionFlags) } else { None };
+        WTSFreeMemory(buf.0 as *mut core::ffi::c_void);
+        flags
+    }
+}
+
+/// The input desktop's name, or None when it can't be opened (the secure desktop).
+fn input_desktop_name() -> Option<String> {
+    unsafe {
+        let d = OpenInputDesktop(DESKTOP_CONTROL_FLAGS(0), false, DESKTOP_READOBJECTS).ok()?;
+        let mut name = [0u16; 64];
+        let mut needed = 0u32;
+        let ok = GetUserObjectInformationW(HANDLE(d.0), UOI_NAME, Some(name.as_mut_ptr() as *mut core::ffi::c_void), (name.len() * 2) as u32, Some(&mut needed)).is_ok();
+        let _ = CloseDesktop(d);
+        if !ok {
+            return None;
+        }
+        let n = name.iter().position(|&c| c == 0).unwrap_or(name.len());
+        Some(String::from_utf16_lossy(&name[..n]))
+    }
+}
+
+pub fn desktop_state() -> RpcResult {
+    let flags = session_flags();
+    let desk = input_desktop_name();
+    let fg = unsafe { GetForegroundWindow() };
+    Ok(json!({
+        "locked": locked_from(flags, desk.as_deref()),
+        "sessionFlags": flags,
+        "inputDesktop": desk,
+        "display": display_state_name(DISPLAY_STATE.load(std::sync::atomic::Ordering::Relaxed)),
+        "foreground": !fg.0.is_null(),
+        // 0 when every monitor dropped off the desktop (e.g. DisplayPort monitors in deep sleep).
+        "monitors": unsafe { GetSystemMetrics(SM_CMONITORS) },
+    }))
+}
+
+/// 0.9.8: turn the display back on for a remote request. Resets the display
+/// idle timer (ES_DISPLAY_REQUIRED) and, because that alone doesn't switch an
+/// already-dark monitor back on, sends ONE zero-distance relative mouse move
+/// (the pointer doesn't move and nothing is clicked). Never unlocks anything.
+pub fn wake_display() -> RpcResult {
+    unsafe {
+        let _ = SetThreadExecutionState(ES_DISPLAY_REQUIRED);
+        let input = windows::Win32::UI::Input::KeyboardAndMouse::INPUT {
+            r#type: windows::Win32::UI::Input::KeyboardAndMouse::INPUT_MOUSE,
+            Anonymous: windows::Win32::UI::Input::KeyboardAndMouse::INPUT_0 {
+                mi: windows::Win32::UI::Input::KeyboardAndMouse::MOUSEINPUT { dx: 0, dy: 0, mouseData: 0, dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::MOUSEEVENTF_MOVE, time: 0, dwExtraInfo: 0 },
+            },
+        };
+        let n = windows::Win32::UI::Input::KeyboardAndMouse::SendInput(&[input], std::mem::size_of::<windows::Win32::UI::Input::KeyboardAndMouse::INPUT>() as i32);
+        Ok(json!({ "nudged": n == 1 }))
+    }
+}
+
 /// "Lock my PC": exactly like Win+L. Unlocking stays with Windows (Hello / PIN / password).
 pub fn lock_workstation() -> RpcResult {
     unsafe { LockWorkStation() }.map_err(|e| e.to_string())?;
@@ -321,6 +441,20 @@ pub fn lock_workstation() -> RpcResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn locked_detection() {
+        use super::locked_from;
+        assert_eq!(locked_from(Some(0), Some("Default")), Some(true)); // session says locked
+        assert_eq!(locked_from(Some(1), Some("Default")), Some(false));
+        assert_eq!(locked_from(Some(1), Some("Winlogon")), Some(true)); // secure desktop
+        assert_eq!(locked_from(None, None), None);
+        assert_eq!(locked_from(Some(1), None), Some(false));
+        assert_eq!(locked_from(Some(-1), Some("Winlogon")), Some(true));
+        assert_eq!(super::display_state_name(0), "off");
+        assert_eq!(super::display_state_name(1), "on");
+        assert_eq!(super::display_state_name(7), "unknown");
+    }
+
     #[test]
     fn restore_only_untouched_levels() {
         assert!(super::should_restore(0.2, Some(0.2)));
