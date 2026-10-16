@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { encodePowerShell, terminalScript } from '../shared/terminal';
 import { whichSync } from './exe-finder';
+import { safeRemove } from './safe-delete';
 import type { WinInfo } from './apps/launcher';
 
 export interface TerminalResult {
@@ -94,6 +95,13 @@ export async function runInTerminal(
   } catch {
     /* not finished */
   }
-  setTimeout(() => fs.rm(dir, { recursive: true, force: true }, () => undefined), 5000);
+  // 0.9.10: never follow a link planted in the temp folder; the folder itself is the only allowed root.
+  setTimeout(() => {
+    try {
+      safeRemove(dir, [dir]);
+    } catch {
+      /* in use or unsafe: the startup sweep retries */
+    }
+  }, 5000);
   return { output: output.replace(/\r\n/g, '\n').trim(), exitCode, terminal: wt ? 'wt' : 'powershell', window, timedOut };
 }

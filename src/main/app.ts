@@ -32,7 +32,7 @@ import { personaContext, voiceDialect } from '../shared/persona';
 import { Greeter, inQuietHours } from './greeter';
 import { Announcer, announceReply } from './announce';
 import { LOCKED_REPLY, RemotePresence } from './remote-presence';
-import { CLEAR_HISTORY_NOTE, clearHistoryFiles, idleClearDue, ORPHAN_AGE_MS, type HistoryPaths } from './history';
+import { CLEAR_HISTORY_NOTE, clearHistoryFiles, idleClearDue, startupSweep, type HistoryPaths } from './history';
 import { addDuckRecords, readDuckRecords, removeDuckRecords } from './duck-records';
 import { parseLocalAnnouncement } from '../shared/announce';
 import { WhatsAppClient } from './whatsapp/client';
@@ -1393,10 +1393,13 @@ export class CadabraApp {
       : 'Done — history cleared.';
   }
 
-  /** Startup: orphaned temp files (> 1 day) always; everything if "Clear when Cadabra closes". */
+  /**
+   * Startup: with "until I clear it" only orphaned temp/session files (> 1 day) go, never
+   * conversation history (0.9.10 M1); the auto-clear modes finish a clear that was missed.
+   */
   private startupHistoryCleanup(): void {
     const mode = this.settings.get().privacy?.keepHistory ?? 'until-cleared';
-    const removed = clearHistoryFiles(this.historyPaths(), mode === 'on-close' ? {} : { olderThanMs: ORPHAN_AGE_MS });
+    const removed = clearHistoryFiles(this.historyPaths(), startupSweep(mode));
     if (removed.length) console.log(`[history] startup clean-up: ${removed.length} old file(s) removed`);
     this.historyTimer = setInterval(() => {
       const m = this.settings.get().privacy?.keepHistory ?? 'until-cleared';

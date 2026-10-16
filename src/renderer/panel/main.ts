@@ -128,7 +128,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.9',
+    version: '0.9.10',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -986,7 +986,7 @@ async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string
       <div class="s-group" id="s-privacy-group"><h4>Privacy</h4>
         <div class="s-row"><div class="s-label">Keep chat history<small>Your conversations are mostly kept in memory anyway; this also covers the AI session files ${nm} keeps on this PC.</small>
           <select id="s-keep-history"><option value="until-cleared">Until I clear it</option><option value="on-close">Clear when ${nm} closes</option><option value="idle-1h">Clear after 1 hour of inactivity</option></select></div></div>
-        <div class="s-row"><div class="s-label">Clear chat history<small>Removes your conversations from ${nm} on this PC (both the panel and WhatsApp), ends the AI sessions so they start fresh, and deletes ${nm}’s own session and temp files. Keeps your settings, skills, keys and WhatsApp pairing. It can’t remove copies elsewhere: the chat on your phone (delete it in WhatsApp; Meta keeps agent messages up to 30 days) or what your AI provider keeps under its own policy.</small></div><button type="button" class="btn ghost" id="s-clear-history">Clear…</button></div>
+        <div class="s-row"><div class="s-label">Clear chat history<small>Removes your conversations from ${nm} on this PC (both the panel and WhatsApp), ends the AI sessions so they start fresh, and deletes ${nm}’s own session and temp files. Keeps your settings, skills, keys and WhatsApp pairing. It can’t remove copies elsewhere: the chat on your phone (delete it in WhatsApp; Meta keeps agent messages up to 30 days) or what your AI provider keeps under its own policy. GitHub Copilot keeps its sessions in your own ~/.copilot folder, which ${nm} doesn’t clear.</small></div><button type="button" class="btn ghost" id="s-clear-history">Clear…</button></div>
       </div>
       <div class="s-group" id="s-ann-group"><h4>Announcements</h4>
         <p class="s-note">Say “${nm}, make an announcement: dinner is ready”, or send <b>Announcement: …</b> from WhatsApp, and the PC says it out loud, word for word. It works while the PC is locked and even when spoken replies are off. Esc stops it.</p>

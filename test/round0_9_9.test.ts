@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { clearHistoryFiles, historyTargets, IDLE_CLEAR_MS, idleClearDue, ORPHAN_AGE_MS, type HistoryPaths } from '../src/main/history';
+import { clearHistoryFiles, historyTargets, IDLE_CLEAR_MS, idleClearDue, ORPHAN_AGE_MS, startupSweep, type HistoryPaths } from '../src/main/history';
 import { parseIntent } from '../src/shared/intents';
 import { DEFAULT_SETTINGS, mergeSettings, sanitizeRendererPatch } from '../src/shared/settings';
 
@@ -86,16 +86,26 @@ describe('0.9.9 clearing Cadabra’s own history files', () => {
     expect(fs.existsSync(w.keep.userCodex)).toBe(true);
     expect(fs.existsSync(w.keep.userGemini)).toBe(true);
   });
-  it('startup clean-up: only orphaned files older than a day (fresh ones stay)', () => {
+  it('startup clean-up ("until I clear it"): only orphaned temp files older than a day, never history (0.9.10 M1)', () => {
     const w = world('c');
     const old = (Date.now() - ORPHAN_AGE_MS - 60_000) / 1000;
-    fs.utimesSync(w.content.mcp, old, old);
-    fs.utimesSync(path.join(w.p.temp, 'cadabra-term-deadbeef'), old, old);
-    clearHistoryFiles(w.p, { olderThanMs: ORPHAN_AGE_MS });
-    expect(fs.existsSync(w.content.mcp)).toBe(false);
-    expect(fs.existsSync(w.content.term)).toBe(false);
-    expect(fs.existsSync(w.content.prompt)).toBe(true); // fresh
-    expect(fs.existsSync(w.content.codexSessions)).toBe(true);
+    // Everything is old, yet only the orphaned temp/session files go.
+    for (const f of [...Object.values(w.content), path.join(w.p.temp, 'cadabra-term-deadbeef'), path.join(w.p.codexHome, 'sessions'), path.join(w.p.claudeConfig, 'projects'), path.join(w.p.geminiHome, '.gemini', 'tmp')]) fs.utimesSync(f, old, old);
+    put(path.join(w.p.agentWork, 'claude-prompt-ffff.txt')); // fresh: stays
+    expect(startupSweep('until-cleared')).toEqual({ scope: 'orphans', olderThanMs: ORPHAN_AGE_MS });
+    clearHistoryFiles(w.p, startupSweep('until-cleared'));
+    for (const k of ['mcp', 'prompt', 'hook', 'shot', 'term'] as const) expect(fs.existsSync(w.content[k]), k).toBe(false);
+    for (const k of ['codexSessions', 'codexHistory', 'geminiChats', 'claudeProjects', 'claudeJson', 'e2e', 'cwdFile'] as const) expect(fs.existsSync(w.content[k]), k).toBe(true);
+    expect(fs.existsSync(path.join(w.p.agentWork, 'claude-prompt-ffff.txt'))).toBe(true);
+    expect(historyTargets(w.p, 'orphans').map((t) => path.basename(t.path))).toEqual(['claude-prompt-ffff.txt']);
+  });
+  it('startup clean-up in the auto-clear modes', () => {
+    expect(startupSweep('on-close')).toEqual({ scope: 'all' });
+    expect(startupSweep('idle-1h')).toEqual({ scope: 'all', olderThanMs: IDLE_CLEAR_MS });
+    const w = world('c2');
+    clearHistoryFiles(w.p, startupSweep('on-close'));
+    for (const [k, f] of Object.entries(w.content)) expect(fs.existsSync(f), k).toBe(false);
+    for (const [k, f] of Object.entries(w.keep)) expect(fs.existsSync(f), k).toBe(true);
   });
   it('"Clear after 1 hour of inactivity"', () => {
     const now = 10 * IDLE_CLEAR_MS;
@@ -145,7 +155,8 @@ describe('0.9.9 asking, settings and wiring', () => {
     for (const d of ["'agent-work'", "'codex-home'", "'gemini-home'", "'claude-api-config'", "'e2e-live'"]) expect(hp).toContain(d);
     expect(hp).not.toMatch(/homedir/);
     // Startup / on-close modes.
-    expect(src).toMatch(/clearHistoryFiles\(this\.historyPaths\(\), mode === 'on-close' \? \{\} : \{ olderThanMs: ORPHAN_AGE_MS \}\)/);
+    expect(src).toMatch(/clearHistoryFiles\(this\.historyPaths\(\), startupSweep\(mode\)\)/);
+    expect(src).not.toMatch(/fs\.rmSync\([^)]*recursive/);
     expect(src).toMatch(/=== 'on-close'\) \{\s*const n = clearHistoryFiles\(this\.historyPaths\(\)\)\.length;/);
   });
   it('Claude’s backend session files are removed when its process is disposed (quit / clear)', async () => {

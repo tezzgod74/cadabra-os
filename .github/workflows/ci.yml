@@ -31,6 +31,9 @@ jobs:
       - name: Unit tests
         # Integration tests skip themselves without their CADABRA_* variables.
         run: npm test
+      - name: Deletion-safety tests under Electron's Node
+        # Real junctions/symlinks in temp sandboxes, run with ELECTRON_RUN_AS_NODE=1 (the shipped runtime).
+        run: npm run test:electron-node
       - name: Build JS
         run: npm run build:js
 

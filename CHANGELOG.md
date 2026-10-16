@@ -4,6 +4,14 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.10
+
+0.9.9 was never released publicly; this fixes an issue found in its pre-release review.
+
+- **Fixed (safety): deleting Cadabra's folders could follow a junction.** Under the Node version inside Electron 44, a recursive delete follows NTFS junctions, so a junction placed inside one of Cadabra's private folders could have made *Clear chat history* (or a model update, or terminal clean-up) delete files outside them. Every recursive delete in Cadabra now walks the tree itself: a symbolic link or junction is removed as a link and never entered, and each folder's real path must be inside Cadabra's data folder (or be the exact `cadabra-term-*` temp folder), checked again right before its contents are removed. New tests build real junctions and symlinks in temporary folders and run under both system Node and Electron's own Node (`npm run test:electron-node`, also in CI).
+- **Startup clean-up no longer removes history in the default mode.** With *Keep chat history: Until I clear it*, startup only removes leftover temp files older than a day (terminal output, per-session MCP/prompt/hook files, screenshots handed to Codex), never Codex, Gemini or Claude Code sessions or test reports. The *Clear when Cadabra closes* and *Clear after 1 hour of inactivity* modes still finish a missed clear.
+- The clear-history note now says that GitHub Copilot keeps its sessions in your own `~/.copilot` folder, which Cadabra doesn't clear.
+
 ## 0.9.9
 
 - **Clear chat history:** a 🗑 button in the panel, Settings → Privacy, the tray, or say *"clear my history"* / *"delete our conversation"* / *"forget this conversation"* (also from WhatsApp). It always asks first (a card at the PC, a spoken yes/no by voice, a one-time code in WhatsApp). It clears the panel and both conversation contexts (PC and WhatsApp), stops the AI sessions so they start fresh, and deletes Cadabra's own session and temp files (backend working files, Codex/Gemini/Claude Code session history in Cadabra's private folders, terminal output, test reports). It keeps settings, skills, grants, keys and WhatsApp pairing, and never touches your own `~/.claude`, `~/.codex` or `~/.gemini`. Copies elsewhere (your phone's chat, your AI provider's retention) are explained, not hidden.

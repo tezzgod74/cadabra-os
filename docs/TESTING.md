@@ -139,6 +139,7 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] From WhatsApp send *"forget this conversation"*: it asks for a one-time code in the chat; after the code it confirms, and the next request starts fresh.
 - [ ] Settings → Privacy → *Clear when Cadabra closes*: quit and restart; `%APPDATA%\Cadabra OS\agent-work` has no `claude-*` session files left.
 - [ ] Settings, skills, keys and WhatsApp pairing are all still there afterwards.
+- [ ] With *Until I clear it* (the default), quit and restart: your Codex / Gemini / Claude sessions are still there (only leftover temp files older than a day are removed).
 
 ### Using Cadabra while you're away
 

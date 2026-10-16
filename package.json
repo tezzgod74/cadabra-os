@@ -1,6 +1,6 @@
 {
   "name": "cadabra-os",
-  "version": "0.9.9",
+  "version": "0.9.10",
   "description": "Ctrl + right-click anywhere to summon an AI that can see and act on your screen.",
   "main": "out/main/index.js",
   "scripts": {
@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src test",
     "test": "vitest run",
+    "test:electron-node": "node scripts/test-electron-node.mjs",
     "test:native": "cargo test --release --manifest-path native/cadabra-helper/Cargo.toml",
     "smoke:helper": "node scripts/helper-smoke.mjs",
     "dist": "npm run build:native && electron-vite build && electron-builder --win nsis --publish never",

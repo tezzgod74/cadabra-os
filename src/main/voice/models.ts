@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { safeRemove } from '../safe-delete';
 
 /** Parakeet TDT-CTC 110M int8 (English, punctuated) — downloaded on first voice enable. */
 export const ASR_MODEL = {
@@ -86,10 +87,10 @@ export async function ensureAsrModel(userData: string, onProgress: (pct: number)
   fs.mkdirSync(tmp, { recursive: true });
   await extract(archive, tmp);
   const src = path.join(tmp, ASR_MODEL.folder);
-  fs.rmSync(dir, { recursive: true, force: true });
+  safeRemove(dir, [modelsDir, userData]);
   fs.mkdirSync(dir, { recursive: true });
   for (const f of ['model.int8.onnx', 'tokens.txt']) fs.renameSync(path.join(src, f), path.join(dir, f));
-  fs.rmSync(tmp, { recursive: true, force: true });
+  safeRemove(tmp, [modelsDir]);
   fs.rmSync(archive, { force: true });
   return dir;
 }
@@ -138,10 +139,10 @@ export async function ensureTtsModel(userData: string, onProgress: (pct: number)
   fs.mkdirSync(tmp, { recursive: true });
   await extract(archive, tmp);
   const src = path.join(tmp, TTS_MODEL.folder);
-  fs.rmSync(dir, { recursive: true, force: true });
+  safeRemove(dir, [modelsDir, userData]);
   fs.mkdirSync(dir, { recursive: true });
   for (const f of TTS_MODEL.keep) if (fs.existsSync(path.join(src, f))) fs.renameSync(path.join(src, f), path.join(dir, f));
-  fs.rmSync(tmp, { recursive: true, force: true });
+  safeRemove(tmp, [modelsDir]);
   fs.rmSync(archive, { force: true });
   return dir;
 }
