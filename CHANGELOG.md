@@ -4,6 +4,12 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.11
+
+- **Show Cadabra in screen recordings and screen sharing** (Settings → Privacy, and **Presenting mode** in the tray). Cadabra's windows were always hidden from recordings, screenshots and shared screens, which kept private chats off shared screens but also meant demos couldn't be recorded. It's still off by default; turned on, the panel, ghost cursor, highlight rings, confirm cards and the WhatsApp pill show in OBS, Game Bar, the Snipping Tool, Teams and Zoom. It applies at once, is remembered across restarts, and a red **● Visible** badge in the panel header shows while it's on.
+- Cadabra's own captures still never include Cadabra: for each screenshot it takes (for the AI or for WhatsApp) its windows are hidden from capture for that moment only (no flicker on your screen; a recording misses Cadabra for about a tenth of a second). Screenshots sent to WhatsApp also paint over the panel's area, so its chat text can't end up in the picture.
+- Safe delete (follow-up to 0.9.10's review): the containing folder's real path is checked again right before each file is removed, and the Electron-runtime tests now check for exactly Electron 44.7.x.
+
 ## 0.9.10
 
 0.9.9 was never released publicly; this fixes an issue found in its pre-release review.

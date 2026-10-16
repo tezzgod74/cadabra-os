@@ -5,6 +5,10 @@
 //! are omitted by DWM, so Cadabra's own panel/overlay never appear.
 //! `mode: "window"` uses PrintWindow(PW_RENDERFULLCONTENT) for occluded windows.
 //!
+//! `mask: [rect...]` (physical px, 0.9.11) paints those areas a neutral colour
+//! after capture (used to keep Cadabra's own panel out of WhatsApp pictures
+//! when the user lets screen recordings see Cadabra).
+//!
 //! The image is downscaled (HALFTONE) so its longest side is <= `maxSize`
 //! (default 1568). The returned `scale` maps image px -> physical screen px:
 //!   screen_x = rect.x + img_x * scale
@@ -46,7 +50,9 @@ pub fn capture(p: &Value) -> RpcResult {
     let dw = ((sw as f64) / scale).round().max(1.0) as i32;
     let dh = ((sh as f64) / scale).round().max(1.0) as i32;
 
-    let pixels = unsafe { grab(rect, dw, dh, if mode == "window" { hwnd } else { None })? };
+    let mut pixels = unsafe { grab(rect, dw, dh, if mode == "window" { hwnd } else { None })? };
+    let masks = parse_masks(p.get("mask"));
+    apply_masks(&mut pixels, dw, dh, &rect, scale, &masks);
 
     // BGRA top-down -> RGB
     let mut rgb = Vec::with_capacity((dw * dh * 3) as usize);
@@ -71,6 +77,38 @@ pub fn capture(p: &Value) -> RpcResult {
         "rect": crate::win::rect_json(&rect),
         "bytes": out.len(),
     }))
+}
+
+/// Neutral fill for masked areas (BGRA).
+pub const MASK_BGRA: [u8; 4] = [0x3a, 0x30, 0x30, 0xff];
+
+fn parse_masks(v: Option<&Value>) -> Vec<RECT> {
+    let Some(arr) = v.and_then(|v| v.as_array()) else { return Vec::new() };
+    arr.iter()
+        .take(32)
+        .filter_map(|r| {
+            let g = |k: &str| r.get(k).and_then(|v| v.as_f64());
+            let (x, y, w, h) = (g("x")?, g("y")?, g("width")?, g("height")?);
+            Some(RECT { left: x.floor() as i32, top: y.floor() as i32, right: (x + w).ceil() as i32, bottom: (y + h).ceil() as i32 })
+        })
+        .collect()
+}
+
+/// Paint `masks` (screen px) over a top-down BGRA image of `rect` scaled by `scale`
+/// (screen = rect.origin + img * scale). Rounds outwards so no edge pixel survives.
+pub fn apply_masks(px: &mut [u8], dw: i32, dh: i32, rect: &RECT, scale: f64, masks: &[RECT]) {
+    for m in masks {
+        let x0 = (((m.left - rect.left) as f64) / scale).floor().max(0.0) as i32;
+        let y0 = (((m.top - rect.top) as f64) / scale).floor().max(0.0) as i32;
+        let x1 = ((((m.right - rect.left) as f64) / scale).ceil() as i32).min(dw);
+        let y1 = ((((m.bottom - rect.top) as f64) / scale).ceil() as i32).min(dh);
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let i = ((y * dw + x) * 4) as usize;
+                px[i..i + 4].copy_from_slice(&MASK_BGRA);
+            }
+        }
+    }
 }
 
 unsafe fn grab(rect: RECT, dw: i32, dh: i32, hwnd: Option<HWND>) -> Result<Vec<u8>, String> {
@@ -137,4 +175,36 @@ unsafe fn grab(rect: RECT, dw: i32, dh: i32, hwnd: Option<HWND>) -> Result<Vec<u
     let _ = DeleteDC(mem);
     ReleaseDC(None, screen);
     result.map(|_| data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn masks_cover_the_rect_in_image_pixels() {
+        // A 200x100 screen area at (100, 50), captured at scale 2 -> 100x50 image.
+        let (dw, dh) = (100, 50);
+        let mut px = vec![0u8; (dw * dh * 4) as usize];
+        let rect = RECT { left: 100, top: 50, right: 300, bottom: 150 };
+        let masks = parse_masks(Some(&json!([{ "x": 141, "y": 61, "width": 40, "height": 20 }, { "x": 280, "y": 140, "width": 500, "height": 500 }])));
+        apply_masks(&mut px, dw, dh, &rect, 2.0, &masks);
+        let at = |x: i32, y: i32| px[((y * dw + x) * 4) as usize..((y * dw + x) * 4 + 4) as usize].to_vec();
+        assert_eq!(at(20, 5), MASK_BGRA.to_vec()); // (141,61) -> (20.5, 5.5): rounded outwards
+        assert_eq!(at(40, 15), MASK_BGRA.to_vec()); // (181,81) edge
+        assert_eq!(at(19, 5), vec![0, 0, 0, 0]);
+        assert_eq!(at(41, 16), vec![0, 0, 0, 0]);
+        assert_eq!(at(99, 49), MASK_BGRA.to_vec()); // clipped to the image
+        assert_eq!(at(89, 44), vec![0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn bad_or_missing_masks_are_ignored() {
+        assert!(parse_masks(None).is_empty());
+        assert!(parse_masks(Some(&json!("x"))).is_empty());
+        assert_eq!(parse_masks(Some(&json!([{ "x": 1 }, { "x": 0, "y": 0, "width": 1, "height": 1 }]))).len(), 1);
+        let mut px = vec![0u8; 16];
+        apply_masks(&mut px, 2, 2, &RECT { left: 0, top: 0, right: 2, bottom: 2 }, 1.0, &[RECT { left: 10, top: 10, right: 20, bottom: 20 }]);
+        assert_eq!(px, vec![0u8; 16]);
+    }
 }

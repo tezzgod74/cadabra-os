@@ -128,7 +128,8 @@ export interface Settings {
   /** 0.9.5: skills the user turned on or off, by id ("user:quick-note"). Missing = default (built-ins on, others off). */
   skills: { enabled: Record<string, boolean> };
   /** 0.9.9: how long chat history is kept (it's mostly in memory anyway). */
-  privacy: { keepHistory: 'until-cleared' | 'on-close' | 'idle-1h' };
+  /** keepHistory: 0.9.9. showInRecordings (0.9.11): Cadabra's windows show in screen recordings / sharing (default off). */
+  privacy: { keepHistory: 'until-cleared' | 'on-close' | 'idle-1h'; showInRecordings: boolean };
   /** 0.9.6: announcements (spoken verbatim on the PC). */
   announcements: import('./announce').AnnouncementSettings;
   /** Round 7: "Your location" (a city) for weather; '' = ask once in conversation. Never guessed from the IP. */
@@ -250,7 +251,9 @@ export type PanelMessage =
   | { type: 'prefill'; text: string; submit?: boolean }
   | { type: 'tts-progress'; pct: number }
   | { type: 'voice-progress'; pct: number }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  /** 0.9.11: Cadabra is visible to screen recordings and sharing (header badge). */
+  | { type: 'recording-visible'; on: boolean };
 
 /** Messages main -> overlay renderer. All coordinates are DIP relative to the overlay window. */
 export type OverlayMessage =

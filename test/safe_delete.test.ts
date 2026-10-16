@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { clearHistoryFiles, type HistoryPaths } from '../src/main/history';
 import { isLink, safeRemove, UnsafeDeleteError } from '../src/main/safe-delete';
 
@@ -59,7 +59,8 @@ function world(name: string) {
 
 describe('0.9.10 safe delete: real junctions and symlinks in temp sandboxes', () => {
   it(`runs under ${process.versions.electron ? `Electron ${process.versions.electron}` : 'system Node'} ${process.versions.node}`, () => {
-    if (process.env.CADABRA_EXPECT_ELECTRON) expect(process.versions.electron).toBeTruthy();
+    // 0.9.11 (REVIEW-0.9.10): the shipped runtime exactly: Electron 44.7.x (Node 24.21, whose rmSync follows junctions).
+    if (process.env.CADABRA_EXPECT_ELECTRON) expect(process.versions.electron).toMatch(/^44\.7\.\d+$/);
     expect(isLink(tmp)).toBe(false);
   });
 
@@ -159,6 +160,31 @@ describe('0.9.10 safe delete: real junctions and symlinks in temp sandboxes', ()
     clearHistoryFiles(w.p);
     expect(fs.existsSync(path.join(w.p.codexHome, 'sessions'))).toBe(false);
     expect(fs.existsSync(path.join(w.p.claudeConfig, 'projects'))).toBe(false);
+    expect(w.survived()).toBe(true);
+  });
+
+  it('a folder swapped for a junction mid-walk: the unlink is refused (parent re-validated before each file; 0.9.11)', () => {
+    const w = world('race');
+    const victim = path.join(w.p.codexHome, 'sessions');
+    put(path.join(victim, 'a.txt'), 'history');
+    // Same file name in the precious folder, so an unvalidated unlink would hit it.
+    const a = put(path.join(w.precious, 'a.txt'));
+    const real = fs.readdirSync;
+    const spy = vi.spyOn(fs, 'readdirSync').mockImplementation(((p: fs.PathLike, o?: unknown) => {
+      const names = (real as (p: fs.PathLike, o?: unknown) => string[])(p, o);
+      if (path.resolve(String(p)) === path.resolve(victim)) {
+        // The attacker's move between listing and deleting: swap the folder for a junction.
+        fs.renameSync(victim, `${victim}-moved`);
+        fs.symlinkSync(w.precious, victim, 'junction');
+      }
+      return names;
+    }) as typeof fs.readdirSync);
+    try {
+      expect(() => safeRemove(victim, [w.p.userData])).toThrow(UnsafeDeleteError);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(fs.readFileSync(a, 'utf8')).toBe('keep me');
     expect(w.survived()).toBe(true);
   });
 

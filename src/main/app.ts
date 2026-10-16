@@ -9,6 +9,7 @@ import { sanitizeRendererPatch } from '../shared/settings';
 import { checkObservation } from '../shared/safety';
 import type { AuthStatus, ModelOption, Point, ProviderEvent, ProviderId, ProviderInfo, Rect, Settings, TargetWindow, VoiceState } from '../shared/types';
 import { HelperClient, type SummonEvent } from './helper';
+import { CaptureVisibility } from './capture-visibility';
 import { startMcpHttp, type McpHttpHandle } from './mcp-http';
 import { ClaudeProvider } from './providers/claude';
 import { CodexProvider } from './providers/codex';
@@ -103,6 +104,8 @@ export class CadabraApp {
   helper: HelperClient | null = null;
   panel: BrowserWindow | null = null;
   overlays!: OverlayManager;
+  /** 0.9.11: whether Cadabra's windows show in screen recordings / sharing, and its own captures never include them. */
+  visibility!: CaptureVisibility;
   tray: Tray | null = null;
   readonly gate: SafetyGate;
   readonly tools: ToolHost;
@@ -428,13 +431,17 @@ export class CadabraApp {
 
   async init(): Promise<void> {
     if (this.opts.demoLive) this.settings.update({ provider: 'demo' });
-    this.overlays = new OverlayManager(!this.opts.selftest);
+    // 0.9.11: content protection on every Cadabra window follows "Show Cadabra in screen recordings".
+    // The self-test (and the demo panel) stay capturable as before.
+    this.visibility = new CaptureVisibility(this.settings.get().privacy.showInRecordings);
+    this.overlays = new OverlayManager((w) => this.visibility.register(w, { exempt: !!this.opts.selftest }));
     this.overlays.rebuild();
-    this.panel = createPanel({ contentProtection: !this.opts.demoLive && !this.opts.selftest });
+    this.panel = createPanel({ onCreate: (w) => this.visibility.register(w, { exempt: !!(this.opts.demoLive || this.opts.selftest) }) });
     this.wirePanel();
     this.wireIpc();
     this.createTray();
     this.settings.onChange(() => this.refreshTray());
+    this.settings.onChange((s) => this.applyRecordingVisibility(s.privacy.showInRecordings));
     app.setLoginItemSettings({ openAtLogin: this.settings.get().launchAtLogin, args: ['--hidden'] });
 
     console.log(`[app] Cadabra ${app.getVersion()} starting (Electron ${process.versions.electron}, ${os.release()}, ${app.isPackaged ? 'installed' : 'dev'}${this.opts.demoLive ? ', demo/test mode' : ''})`);
@@ -443,6 +450,8 @@ export class CadabraApp {
     if (fs.existsSync(exe)) {
       // Test, demo and e2e runs never install the summon hook (they mustn't fight the user's own Cadabra for Ctrl+~).
       this.helper = new HelperClient(exe, this.opts.demoLive || this.opts.e2e ? ['--no-hook'] : []);
+      // 0.9.11: every capture (see_screen, send_screenshot, highlight targeting, summon) keeps Cadabra out of the frame.
+      this.helper.captureShield = (fn) => this.visibility.forCapture(fn);
       this.helper.on('summon', (ev: SummonEvent) => void this.onSummon(ev));
       this.helper.on('escape', () => this.onEscape());
       this.helper.on('ptt', (down: boolean) => {
@@ -831,7 +840,7 @@ export class CadabraApp {
       return;
     }
     try {
-      await sleep(40); // let content protection apply before capturing
+      await sleep(40); // let the panel's content protection apply before capturing (the capture shield re-protects if needed)
       const cap = await this.h().capture({ hwnd: target.hwnd, maxSize: 1568 });
       if (this.target === target) this.summonShot = { data: cap.png, width: cap.width, height: cap.height, rect: cap.rect, scale: cap.scale };
     } catch (e) {
@@ -1867,13 +1876,32 @@ export class CadabraApp {
 
   /** The owner asked to see the screen: a compressed JPEG preview, deleted from the service after sending. */
   private async sendScreenshotToWhatsApp(caption: string): Promise<string> {
-    const cap = await this.h().capture({ maxSize: 1600 });
+    const cap = await this.h().capture({ maxSize: 1600, mask: this.cadabraMask() });
     let img = nativeImage.createFromBuffer(Buffer.from(cap.png, 'base64'));
     if (img.getSize().width > 1280) img = img.resize({ width: 1280 });
     const jpeg = img.toJPEG(60);
     await this.remote.sendImage(jpeg, caption);
     console.log(`[remote] screenshot sent (${Math.round(jpeg.length / 1024)} KB)`);
     return 'Sent a picture of the screen to WhatsApp.';
+  }
+
+  /**
+   * 0.9.11: when Cadabra is visible to recordings, its own captures re-protect its windows for the
+   * frame (CaptureVisibility.forCapture). For pictures that go to a person (WhatsApp), the panel's
+   * rectangle is also painted over, so its chat text can never be in the image.
+   */
+  cadabraMask(): Rect[] {
+    const p = this.panel;
+    if (!this.visibility.visibleToRecordings || !p || p.isDestroyed() || !p.isVisible()) return [];
+    return [screen.dipToScreenRect(p, p.getBounds())];
+  }
+
+  /** 0.9.11: "Show Cadabra in screen recordings and screen sharing", applied live to every window. */
+  applyRecordingVisibility(on: boolean): void {
+    if (this.visibility.visibleToRecordings === on) return;
+    this.visibility.setVisible(on);
+    console.log(`[privacy] Cadabra is ${on ? 'visible to' : 'hidden from'} screen recordings and sharing`);
+    sendPanel(this.panel, { type: 'recording-visible', on });
   }
 
   /** Settings → WhatsApp status (never the token or the owner id). */
@@ -2387,6 +2415,7 @@ export class CadabraApp {
     // Windows draws inactive acrylic as a flat fallback colour; let the renderer
     // switch to its own deep-indigo glass so it never looks grey.
     panel.on('focus', () => sendPanel(panel, { type: 'focus', focused: true }));
+    panel.webContents.on('did-finish-load', () => sendPanel(panel, { type: 'recording-visible', on: this.visibility.visibleToRecordings }));
     panel.on('blur', () => sendPanel(panel, { type: 'focus', focused: false }));
     panel.on('blur', () => {
       // Click-away dissolves the panel — unless Cadabra is busy acting or asking.
@@ -2921,6 +2950,13 @@ export class CadabraApp {
             ['Never speak replies', 'never'],
           ] as const).map(([label, mode]) => ({ label, type: 'radio' as const, checked: s.voice.speakReplies === mode, click: () => this.updateVoice({ speakReplies: mode }) })),
         ],
+      },
+      {
+        // 0.9.11: quick switch for demos and screen sharing (same setting as Settings → Privacy).
+        label: 'Presenting mode (show Cadabra in recordings)',
+        type: 'checkbox',
+        checked: s.privacy.showInRecordings,
+        click: (i) => this.settings.update({ privacy: { ...this.settings.get().privacy, showInRecordings: i.checked } }),
       },
       {
         label: 'Web access',

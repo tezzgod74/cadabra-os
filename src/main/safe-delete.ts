@@ -63,12 +63,17 @@ function removeLink(p: string): void {
   }
 }
 
-function removeTree(p: string, g: Guard): void {
+function removeTree(p: string, g: Guard, child = false): void {
   const st = fs.lstatSync(p);
-  if (isLink(p, st)) return removeLink(p);
-  if (!st.isDirectory()) return fs.unlinkSync(p); // a hard link: only this name goes
+  if (!st.isDirectory() || isLink(p, st)) {
+    // 0.9.11 (REVIEW-0.9.10): re-validate the containing folder's real path right before each
+    // unlink, so a folder swapped for a junction mid-walk can't redirect it.
+    if (child) assertSafe(path.dirname(p), g);
+    if (!st.isDirectory() && !st.isSymbolicLink()) return fs.unlinkSync(p); // a hard link: only this name goes
+    return removeLink(p);
+  }
   assertSafe(p, g); // re-validate right before touching its children
-  for (const name of fs.readdirSync(p)) removeTree(path.join(p, name), g);
+  for (const name of fs.readdirSync(p)) removeTree(path.join(p, name), g, true);
   assertSafe(p, g);
   fs.rmdirSync(p);
 }

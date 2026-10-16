@@ -239,7 +239,14 @@ export class HelperClient extends EventEmitter {
   windowRect = (hwnd: number) => this.call<Rect>('window_rect', { hwnd });
   uiTree = (p: { hwnd?: number; x?: number; y?: number; maxNodes?: number }) => this.call<UiTree>('ui_tree_at', p, 20000);
   elementInfo = (id: number) => this.call<UiNode>('element_info', { id });
-  capture = (p: { hwnd?: number; rect?: Rect; maxSize?: number; mode?: 'screen' | 'window' }) => this.call<Capture>('capture', p, 20000);
+  /**
+   * 0.9.11: every capture runs inside this shield. The app sets it to
+   * CaptureVisibility.forCapture, which keeps Cadabra's own windows out of the
+   * frame even when the user lets recordings see them. `mask` rectangles
+   * (physical px) are painted over in the image.
+   */
+  captureShield: <T>(fn: () => Promise<T>) => Promise<T> = (fn) => fn();
+  capture = (p: { hwnd?: number; rect?: Rect; maxSize?: number; mode?: 'screen' | 'window'; mask?: Rect[] }) => this.captureShield(() => this.call<Capture>('capture', p, 20000));
   /**
    * REVIEW-2 #7: the current run's cancel epoch, sent with every input call.
    * After `cancel(epoch)` (or a physical Esc) the helper refuses further input

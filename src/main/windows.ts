@@ -36,7 +36,7 @@ function lockDown(win: BrowserWindow) {
  * The glass panel. Recipe from docs/research.md §3.1: frameless, acrylic
  * material, fully transparent background colour, NOT `transparent: true`.
  */
-export function createPanel(opts: { contentProtection: boolean }): BrowserWindow {
+export function createPanel(opts: { onCreate: (win: BrowserWindow) => void }): BrowserWindow {
   const win = new BrowserWindow({
     ...PANEL_SIZE,
     show: false,
@@ -66,7 +66,8 @@ export function createPanel(opts: { contentProtection: boolean }): BrowserWindow
     },
   });
   win.setAlwaysOnTop(true, 'pop-up-menu');
-  if (opts.contentProtection) win.setContentProtection(true);
+  // 0.9.11: content protection (kept out of recordings unless the user opts in) comes from CaptureVisibility.
+  opts.onCreate(win);
   lockDown(win);
   void load(win, 'panel');
   return win;
@@ -77,7 +78,8 @@ export class OverlayManager {
   private wins = new Map<number, BrowserWindow>();
   private visibleUntil = new Map<number, number>();
 
-  constructor(private readonly contentProtection: boolean) {
+  /** `onCreate` applies the current content protection (CaptureVisibility) to each new overlay window. */
+  constructor(private readonly onCreate: (win: BrowserWindow) => void) {
     screen.on('display-added', () => this.rebuild());
     screen.on('display-removed', () => this.rebuild());
     screen.on('display-metrics-changed', () => this.rebuild());
@@ -123,7 +125,7 @@ export class OverlayManager {
     });
     win.setIgnoreMouseEvents(true);
     win.setAlwaysOnTop(true, 'screen-saver');
-    if (this.contentProtection) win.setContentProtection(true);
+    this.onCreate(win);
     lockDown(win);
     void load(win, 'overlay');
     this.wins.set(d.id, win);

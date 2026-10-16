@@ -126,7 +126,7 @@ describe('0.9.9 asking, settings and wiring', () => {
       expect(parseIntent(t)?.kind, t).not.toBe('clear-history');
   });
   it('settings: "Until I clear it" by default; validated; a renderer preference', () => {
-    expect(DEFAULT_SETTINGS.privacy).toEqual({ keepHistory: 'until-cleared' });
+    expect(DEFAULT_SETTINGS.privacy).toEqual({ keepHistory: 'until-cleared', showInRecordings: false });
     expect(mergeSettings({ privacy: { keepHistory: 'idle-1h' } }).privacy.keepHistory).toBe('idle-1h');
     expect(mergeSettings({ privacy: { keepHistory: 'forever' } }).privacy.keepHistory).toBe('until-cleared');
     expect(sanitizeRendererPatch({ privacy: { keepHistory: 'on-close' } })).toEqual({ privacy: { keepHistory: 'on-close' } });

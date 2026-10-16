@@ -34,7 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   claudeApiWeb: true,
   skills: { enabled: {} },
   announcements: { ...DEFAULT_ANNOUNCEMENTS },
-  privacy: { keepHistory: 'until-cleared' },
+  privacy: { keepHistory: 'until-cleared', showInRecordings: false },
   location: '',
   micNotCall: [],
   greetings: { enabled: true, awayMinutes: 20, quietStart: '', quietEnd: '', recent: [] },
@@ -65,7 +65,10 @@ export function mergeSettings(raw: unknown, defaults: Settings = DEFAULT_SETTING
   if (typeof raw.webAccess === 'boolean') out.webAccess = raw.webAccess;
   if (typeof raw.claudeApiWeb === 'boolean') out.claudeApiWeb = raw.claudeApiWeb;
   if (isObj(raw.announcements)) out.announcements = mergeAnnouncements(raw.announcements);
-  if (isObj(raw.privacy) && (raw.privacy.keepHistory === 'until-cleared' || raw.privacy.keepHistory === 'on-close' || raw.privacy.keepHistory === 'idle-1h')) out.privacy = { keepHistory: raw.privacy.keepHistory };
+  if (isObj(raw.privacy)) {
+    if (raw.privacy.keepHistory === 'until-cleared' || raw.privacy.keepHistory === 'on-close' || raw.privacy.keepHistory === 'idle-1h') out.privacy.keepHistory = raw.privacy.keepHistory;
+    if (typeof raw.privacy.showInRecordings === 'boolean') out.privacy.showInRecordings = raw.privacy.showInRecordings;
+  }
   if (isObj(raw.skills) && isObj(raw.skills.enabled)) {
     for (const [k, v] of Object.entries(raw.skills.enabled).slice(0, 500)) if (/^(builtin|install|user):[^\p{Cc}<>:"/\\|?*]{1,100}$/u.test(k) && typeof v === 'boolean') out.skills.enabled[k] = v;
   }
@@ -156,6 +159,7 @@ export function applyPatch(cur: Settings, patch: Partial<Settings>): Settings {
     voice: { ...cur.voice, ...(patch.voice ?? {}) },
     cli: { ...cur.cli, ...(patch.cli ?? {}) },
     safety: { ...cur.safety, ...(patch.safety ?? {}) },
+    privacy: { ...cur.privacy, ...(patch.privacy ?? {}) },
   });
 }
 

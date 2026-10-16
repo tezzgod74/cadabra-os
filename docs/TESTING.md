@@ -141,6 +141,15 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] Settings, skills, keys and WhatsApp pairing are all still there afterwards.
 - [ ] With *Until I clear it* (the default), quit and restart: your Codex / Gemini / Claude sessions are still there (only leftover temp files older than a day are removed).
 
+### Recording a demo
+
+Tip: to record or screen-share Cadabra, tick **Presenting mode** in the tray (or Settings → Privacy → *Show Cadabra in screen recordings and screen sharing*). Turn it off again when you're done; while it's on, the panel header shows a red **● Visible** badge.
+
+- [ ] With the setting off (default), record the screen with Xbox Game Bar (Win+Alt+R) or the Snipping Tool while summoning Cadabra: the recording doesn't show the panel, the ghost cursor or cards.
+- [ ] Tick **Presenting mode** in the tray, without restarting: the badge appears and a new recording shows the panel, the ghost cursor, highlight rings, confirm cards and the WhatsApp pill. Settings → Privacy shows the toggle on.
+- [ ] While it's on, ask *"what's on my screen?"*: the answer doesn't describe Cadabra's own panel. From WhatsApp ask for a screenshot: the picture doesn't show the panel (it may show a dark rectangle where the panel is) and never your chat.
+- [ ] Quit and restart Cadabra: the choice is kept. Untick it: new recordings no longer show Cadabra.
+
 ### Using Cadabra while you're away
 
 - [ ] Let the display turn off (or turn the monitor's power-saving on), then from WhatsApp ask *"what's on my screen?"*. The display comes back on, Cadabra answers, and the display can turn off again afterwards. Diagnostics show `[remote] waking the display …` and `[remote] display on after … ms`.

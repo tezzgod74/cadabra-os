@@ -128,7 +128,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.10',
+    version: '0.9.11',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -986,6 +986,7 @@ async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string
       <div class="s-group" id="s-privacy-group"><h4>Privacy</h4>
         <div class="s-row"><div class="s-label">Keep chat history<small>Your conversations are mostly kept in memory anyway; this also covers the AI session files ${nm} keeps on this PC.</small>
           <select id="s-keep-history"><option value="until-cleared">Until I clear it</option><option value="on-close">Clear when ${nm} closes</option><option value="idle-1h">Clear after 1 hour of inactivity</option></select></div></div>
+        <div class="s-row"><div class="s-label">Show ${nm} in screen recordings and screen sharing<small>Off by default: ${nm}’s panel, cursor and cards stay out of recordings, screenshots and shared screens (Teams, Zoom, OBS, Game Bar, the Snipping Tool), so your chats never show on a screen you share. Turn it on to record a demo or present ${nm}: then anyone watching your shared screen or recording can read the panel, including your chat. ${nm}’s own screenshots (for the AI and for WhatsApp) still leave ${nm} out. Also in the tray menu as <i>Presenting mode</i>.</small></div>${toggle(s.privacy?.showInRecordings === true, 'recordings')}</div>
         <div class="s-row"><div class="s-label">Clear chat history<small>Removes your conversations from ${nm} on this PC (both the panel and WhatsApp), ends the AI sessions so they start fresh, and deletes ${nm}’s own session and temp files. Keeps your settings, skills, keys and WhatsApp pairing. It can’t remove copies elsewhere: the chat on your phone (delete it in WhatsApp; Meta keeps agent messages up to 30 days) or what your AI provider keeps under its own policy. GitHub Copilot keeps its sessions in your own ~/.copilot folder, which ${nm} doesn’t clear.</small></div><button type="button" class="btn ghost" id="s-clear-history">Clear…</button></div>
       </div>
       <div class="s-group" id="s-ann-group"><h4>Announcements</h4>
@@ -1041,6 +1042,7 @@ async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string
     greet: (v) => ({ greetings: { ...s.greetings, enabled: v } }),
     login: (v) => ({ launchAtLogin: v }),
     paused: (v) => ({ paused: v }),
+    recordings: (v) => ({ privacy: { ...s.privacy, showInRecordings: v } }),
   };
   rows.forEach((t) => {
     const k = t.dataset.k;
@@ -1516,6 +1518,9 @@ api.onMessage((m: PanelMessage | any) => {
       break;
     case 'reset':
       resetChat();
+      break;
+    case 'recording-visible':
+      $('rec-badge').hidden = !m.on;
       break;
     case 'apps':
       addAppChoices(m);
