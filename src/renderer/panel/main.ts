@@ -128,7 +128,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.11',
+    version: '0.9.12',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -1024,6 +1024,10 @@ async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string
         <div class="s-row perm-row"><div class="s-label">Permissions<small>Places where you chose “Always allow” on a card.</small><div id="s-perms"></div></div></div>
         <p class="s-note">${s.safety.denylist.length} protected-app rules (password managers blocked; banking, trading and checkout need your OK). Up to ${s.safety.maxActionsPerRun} actions per request. <kbd>Esc</kbd> stops everything.</p>
       </div>
+      <div class="s-group" id="s-advanced-group"><h4>Advanced</h4>
+        <div class="s-row"><div class="s-label">Typing method<small>How ${nm} types text. Keyboard/mouse sharing tools (Input Director, Mouse Without Borders, Synergy…) and some games need real keystrokes.</small>
+          <select id="s-typing"><option value="auto">Auto (recommended)</option><option value="keys">Real keystrokes only</option><option value="unicode">Unicode only</option></select></div></div>
+      </div>
       <p class="s-note" style="margin-top:14px">Cadabra OS ${data.version}</p>
     </div>`;
   const rows = settingsEl.querySelectorAll<HTMLButtonElement>('.toggle');
@@ -1074,6 +1078,13 @@ async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string
   locIn.value = s.location ?? '';
   locIn.onchange = () => void api.setSettings({ location: locIn.value.trim() });
   void renderEmailSettings(settingsEl.querySelector<HTMLDivElement>('#s-email')!, s.provider);
+  // 0.9.12: typing method.
+  const typingSel = settingsEl.querySelector<HTMLSelectElement>('#s-typing')!;
+  typingSel.value = s.typingMethod ?? 'auto';
+  typingSel.onchange = async () => {
+    const u = await api.setSettings({ typingMethod: typingSel.value });
+    if (u) Object.assign(s, u);
+  };
   // 0.9.9: privacy.
   const keepSel = settingsEl.querySelector<HTMLSelectElement>('#s-keep-history')!;
   keepSel.value = s.privacy?.keepHistory ?? 'until-cleared';

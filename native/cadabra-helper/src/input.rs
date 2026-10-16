@@ -212,14 +212,131 @@ pub fn scroll(p: &Value) -> RpcResult {
     Ok(json!(true))
 }
 
-/// One typing step: a key event pair or a UTF-16 unit pair.
+/// A real key press for one character (0.9.12): the virtual key with the
+/// layout's scan code, plus the modifiers the layout needs for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeyStroke {
+    pub vk: u16,
+    pub scan: u16,
+    pub shift: bool,
+    /// AltGr (sent as Ctrl+Alt, which Windows treats as AltGr).
+    pub altgr: bool,
+}
+
+/// One typing step: Enter/Tab, a real keystroke, or a UTF-16 unit (VK_PACKET).
 #[derive(Debug, Clone, PartialEq)]
 pub enum TypeStep {
     Enter,
     Tab,
     Unit(u16),
+    Key(KeyStroke),
 }
 
+/// Settings → Advanced → Typing method (0.9.12).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TypeMethod {
+    /// Real keystrokes for every character on the target's keyboard layout, Unicode for the rest.
+    Auto,
+    /// Real keystrokes only (fails up front if a character isn't on the layout).
+    Keys,
+    /// Every character as a Unicode packet (the pre-0.9.12 behaviour).
+    Unicode,
+}
+
+impl TypeMethod {
+    pub fn parse(s: Option<&str>) -> TypeMethod {
+        match s {
+            Some("keys") => TypeMethod::Keys,
+            Some("unicode") => TypeMethod::Unicode,
+            _ => TypeMethod::Auto,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            TypeMethod::Auto => "auto",
+            TypeMethod::Keys => "keys",
+            TypeMethod::Unicode => "unicode",
+        }
+    }
+}
+
+/// Modifier bits as VkKeyScanEx reports them.
+pub const MOD_SHIFT_BIT: u8 = 1;
+pub const MOD_CTRL_BIT: u8 = 2;
+pub const MOD_ALT_BIT: u8 = 4;
+
+/// A keyboard layout, abstracted so the plan can be unit-tested with tables.
+pub trait KeyLayout {
+    /// VkKeyScanEx: the key and modifier bits for `ch`, or None.
+    fn key_for(&self, ch: char) -> Option<(u16, u8)>;
+    /// Does pressing `vk` with `mods` (current Caps Lock included) type exactly
+    /// `ch` straight away? False for dead keys and anything else.
+    fn produces(&self, vk: u16, mods: u8, ch: char) -> bool;
+    /// The layout's scan code for `vk`.
+    fn scan(&self, vk: u16) -> u16;
+}
+
+/// The keystroke for `ch` on `layout`, if it can be typed with one real key
+/// press (no modifiers besides Shift / AltGr, and not through a dead key).
+pub fn keystroke_for(ch: char, layout: &dyn KeyLayout) -> Option<KeyStroke> {
+    if (ch as u32) > 0xFFFF || ch.is_control() {
+        return None;
+    }
+    let (vk, mods) = layout.key_for(ch)?;
+    if vk == 0 || mods & !(MOD_SHIFT_BIT | MOD_CTRL_BIT | MOD_ALT_BIT) != 0 {
+        return None; // Kana / OEM modifier states: not ours to fake
+    }
+    let altgr = mods & (MOD_CTRL_BIT | MOD_ALT_BIT);
+    if altgr != 0 && altgr != (MOD_CTRL_BIT | MOD_ALT_BIT) {
+        return None; // Ctrl-only or Alt-only would be a shortcut, not a character
+    }
+    // Caps Lock can invert Shift for letters: try the reported state, then the other.
+    for m in [mods, mods ^ MOD_SHIFT_BIT] {
+        if layout.produces(vk, m, ch) {
+            return Some(KeyStroke { vk, scan: layout.scan(vk), shift: m & MOD_SHIFT_BIT != 0, altgr: altgr != 0 });
+        }
+    }
+    None
+}
+
+/// The typing plan for `text` with the given method and target layout.
+pub fn plan_for(text: &str, method: TypeMethod, layout: &dyn KeyLayout) -> Result<Vec<TypeStep>, String> {
+    let mut out = Vec::new();
+    let mut missing: Vec<char> = Vec::new();
+    for ch in text.chars() {
+        match ch {
+            '\n' => out.push(TypeStep::Enter),
+            '\r' => {}
+            '\t' => out.push(TypeStep::Tab),
+            _ => {
+                let k = if method == TypeMethod::Unicode { None } else { keystroke_for(ch, layout) };
+                match k {
+                    Some(k) => out.push(TypeStep::Key(k)),
+                    None => {
+                        if method == TypeMethod::Keys && !missing.contains(&ch) {
+                            missing.push(ch);
+                        }
+                        let mut buf = [0u16; 2];
+                        for unit in ch.encode_utf16(&mut buf) {
+                            out.push(TypeStep::Unit(*unit));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if !missing.is_empty() {
+        let list: String = missing.iter().take(10).map(|c| format!("“{c}” ")).collect();
+        return Err(format!(
+            "these characters aren't on this keyboard layout, so they can't be typed with real keystrokes: {}(set Typing method to Auto to send them as Unicode)",
+            list
+        ));
+    }
+    Ok(out)
+}
+
+/// The pre-0.9.12 plan: every character as Unicode (tests).
+#[cfg(test)]
 pub fn type_plan(text: &str) -> Vec<TypeStep> {
     let mut out = Vec::new();
     for ch in text.chars() {
@@ -255,21 +372,127 @@ pub fn type_with(plan: &[TypeStep], delay_ms: u64, mut send_step: impl FnMut(&Ty
     Ok(n)
 }
 
+/// The keyboard layout of the window that will receive the keys (0.9.12).
+pub struct WinLayout {
+    hkl: HKL,
+}
+
+impl WinLayout {
+    /// The layout of `hwnd`'s thread, or of the foreground window's.
+    pub fn for_window(hwnd: Option<windows::Win32::Foundation::HWND>) -> WinLayout {
+        unsafe {
+            let h = hwnd.unwrap_or_else(|| GetForegroundWindow());
+            let tid = GetWindowThreadProcessId(h, None);
+            WinLayout { hkl: GetKeyboardLayout(tid) }
+        }
+    }
+    /// This thread's layout (tests).
+    #[cfg(test)]
+    pub fn current_thread() -> WinLayout {
+        WinLayout { hkl: unsafe { GetKeyboardLayout(0) } }
+    }
+    pub fn id(&self) -> String {
+        format!("{:08x}", self.hkl.0 as usize as u32)
+    }
+}
+
+impl KeyLayout for WinLayout {
+    fn key_for(&self, ch: char) -> Option<(u16, u8)> {
+        let r = unsafe { VkKeyScanExW(ch as u16, self.hkl) };
+        if r == -1 {
+            return None;
+        }
+        Some(((r as u16) & 0xff, ((r as u16) >> 8) as u8))
+    }
+    fn produces(&self, vk: u16, mods: u8, ch: char) -> bool {
+        let mut state = [0u8; 256];
+        if mods & MOD_SHIFT_BIT != 0 {
+            state[VK_SHIFT.0 as usize] = 0x80;
+            state[VK_LSHIFT.0 as usize] = 0x80;
+        }
+        if mods & MOD_CTRL_BIT != 0 {
+            state[VK_CONTROL.0 as usize] = 0x80;
+            state[VK_LCONTROL.0 as usize] = 0x80;
+        }
+        if mods & MOD_ALT_BIT != 0 {
+            state[VK_MENU.0 as usize] = 0x80;
+            state[VK_RMENU.0 as usize] = 0x80;
+        }
+        if unsafe { GetKeyState(VK_CAPITAL.0 as i32) } & 1 != 0 {
+            state[VK_CAPITAL.0 as usize] = 0x01;
+        }
+        let mut buf = [0u16; 8];
+        // Flag 4: don't change the keyboard state (no dead key left pending).
+        let n = unsafe { ToUnicodeEx(vk as u32, self.scan(vk) as u32, &state, &mut buf, 4, Some(self.hkl)) };
+        n == 1 && buf[0] == ch as u16
+    }
+    fn scan(&self, vk: u16) -> u16 {
+        unsafe { MapVirtualKeyExW(vk as u32, MAPVK_VK_TO_VSC, Some(self.hkl)) as u16 }
+    }
+}
+
+fn key_scan(vk: VIRTUAL_KEY, scan: u16, up: bool, extended: bool) -> INPUT {
+    let mut flags = if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) };
+    if extended {
+        flags |= KEYEVENTF_EXTENDEDKEY;
+    }
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: vk, wScan: scan, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+    }
+}
+
+/// The events for one real keystroke: modifiers down, key down/up, modifiers up
+/// (in one SendInput batch so nothing interleaves and no modifier stays held).
+pub fn keystroke_events(k: &KeyStroke) -> Vec<(u16, u16, bool, bool)> {
+    // (vk, scan, up, extended)
+    let mut down: Vec<(u16, u16, bool, bool)> = Vec::new();
+    if k.altgr {
+        down.push((VK_LCONTROL.0, 0x1D, false, false));
+        down.push((VK_RMENU.0, 0x38, false, true));
+    }
+    if k.shift {
+        down.push((VK_LSHIFT.0, 0x2A, false, false));
+    }
+    let mut ev = down.clone();
+    ev.push((k.vk, k.scan, false, false));
+    ev.push((k.vk, k.scan, true, false));
+    for (vk, scan, _, ext) in down.into_iter().rev() {
+        ev.push((vk, scan, true, ext));
+    }
+    ev
+}
+
 pub fn type_text(p: &Value) -> RpcResult {
     let text = p.get("text").and_then(|v| v.as_str()).ok_or("missing text")?;
     if text.chars().count() > MAX_TYPE_CHARS {
         return Err(format!("text is longer than {MAX_TYPE_CHARS} characters; type it in smaller parts"));
     }
     let delay = p.get("delayMs").and_then(|v| v.as_u64()).unwrap_or(4).min(200);
+    let method = TypeMethod::parse(p.get("method").and_then(|v| v.as_str()));
     begin(p)?;
     wait_modifiers_released()?;
-    let plan = type_plan(text);
+    let hwnd = if p.get("hwnd").is_some() { crate::win::hwnd_param(p).ok() } else { None };
+    let layout = WinLayout::for_window(hwnd);
+    let plan = plan_for(text, method, &layout)?;
+    let (mut keys, mut units) = (0usize, 0usize);
+    for st in &plan {
+        match st {
+            TypeStep::Key(_) => keys += 1,
+            TypeStep::Unit(_) => units += 1,
+            _ => {}
+        }
+    }
     let n = type_with(&plan, delay, |st| match st {
         TypeStep::Enter => send(&[key(VK_RETURN, false), key(VK_RETURN, true)]),
         TypeStep::Tab => send(&[key(VK_TAB, false), key(VK_TAB, true)]),
         TypeStep::Unit(u) => send(&[unicode(*u, false), unicode(*u, true)]),
+        TypeStep::Key(k) => {
+            let ev: Vec<INPUT> = keystroke_events(k).into_iter().map(|(vk, scan, up, ext)| key_scan(VIRTUAL_KEY(vk), scan, up, ext)).collect();
+            send(&ev)
+        }
     })?;
-    Ok(json!({"typed": n}))
+    Ok(json!({"typed": n, "method": method.name(), "keystrokes": keys, "unicode": units, "layout": layout.id()}))
 }
 
 pub fn press_keys(p: &Value) -> RpcResult {
@@ -297,6 +520,147 @@ mod tests {
 
     // CANCEL is process-global; serialize the tests that touch it.
     static LOCK: Mutex<()> = Mutex::new(());
+
+    use std::collections::HashMap;
+
+    /// A layout from a table: char -> (vk, mods, dead).
+    struct Table {
+        map: HashMap<char, (u16, u8, bool)>,
+        caps: bool,
+    }
+    impl KeyLayout for Table {
+        fn key_for(&self, ch: char) -> Option<(u16, u8)> {
+            self.map.get(&ch).map(|&(vk, m, _)| (vk, m))
+        }
+        fn produces(&self, vk: u16, mods: u8, ch: char) -> bool {
+            let Some(&(v, m, dead)) = self.map.get(&ch) else { return false };
+            if dead || v != vk {
+                return false;
+            }
+            // Caps Lock inverts Shift for letters.
+            let want = if self.caps && ch.is_alphabetic() { m ^ MOD_SHIFT_BIT } else { m };
+            mods == want
+        }
+        fn scan(&self, vk: u16) -> u16 {
+            vk + 0x100 // recognisable fake scan codes
+        }
+    }
+
+    /// en-US: letters, digits, punctuation (shifted and not).
+    fn us(caps: bool) -> Table {
+        let mut map = HashMap::new();
+        for c in 'a'..='z' {
+            map.insert(c, (c.to_ascii_uppercase() as u16, 0, false));
+            map.insert(c.to_ascii_uppercase(), (c.to_ascii_uppercase() as u16, MOD_SHIFT_BIT, false));
+        }
+        for (i, c) in "0123456789".chars().enumerate() {
+            map.insert(c, (0x30 + i as u16, 0, false));
+        }
+        for (i, c) in ")!@#$%^&*(".chars().enumerate() {
+            map.insert(c, (0x30 + i as u16, MOD_SHIFT_BIT, false));
+        }
+        map.insert(' ', (0x20, 0, false));
+        map.insert('.', (0xBE, 0, false));
+        map.insert(',', (0xBC, 0, false));
+        map.insert('?', (0xBF, MOD_SHIFT_BIT, false));
+        map.insert('/', (0xBF, 0, false));
+        Table { map, caps }
+    }
+
+    /// de-DE: z/y swapped, AltGr for @ € { and a dead ^ / ´.
+    fn de() -> Table {
+        let mut map = HashMap::new();
+        map.insert('z', (0x59, 0, false)); // the key labelled Z is VK_Y on QWERTZ
+        map.insert('y', (0x5A, 0, false));
+        map.insert('ö', (0xC0, 0, false));
+        map.insert('@', (0x51, MOD_CTRL_BIT | MOD_ALT_BIT, false)); // AltGr+Q
+        map.insert('€', (0x45, MOD_CTRL_BIT | MOD_ALT_BIT, false)); // AltGr+E
+        map.insert('{', (0x37, MOD_CTRL_BIT | MOD_ALT_BIT, false)); // AltGr+7
+        map.insert('^', (0xDC, 0, true)); // dead key
+        map.insert('´', (0xDD, 0, true)); // dead key
+        map.insert('"', (0x32, MOD_SHIFT_BIT, false));
+        map.insert('\u{1}', (0x41, MOD_CTRL_BIT, false)); // Ctrl+A: never typed as a key
+        Table { map, caps: false }
+    }
+
+    fn k(vk: u16, shift: bool, altgr: bool) -> TypeStep {
+        TypeStep::Key(KeyStroke { vk, scan: vk + 0x100, shift, altgr })
+    }
+
+    #[test]
+    fn letters_digits_punctuation_and_shifted_chars_become_real_keystrokes() {
+        let plan = plan_for("aZ9!? ,", TypeMethod::Auto, &us(false)).unwrap();
+        assert_eq!(plan, vec![k(0x41, false, false), k(0x5A, true, false), k(0x39, false, false), k(0x31, true, false), k(0xBF, true, false), k(0x20, false, false), k(0xBC, false, false)]);
+    }
+
+    #[test]
+    fn caps_lock_flips_shift_for_letters_only() {
+        let plan = plan_for("aA1!", TypeMethod::Auto, &us(true)).unwrap();
+        assert_eq!(plan, vec![k(0x41, true, false), k(0x41, false, false), k(0x31, false, false), k(0x31, true, false)]);
+    }
+
+    #[test]
+    fn german_layout_uses_its_own_keys_and_altgr() {
+        let plan = plan_for("zy@€{ö\"", TypeMethod::Auto, &de()).unwrap();
+        assert_eq!(plan, vec![k(0x59, false, false), k(0x5A, false, false), k(0x51, false, true), k(0x45, false, true), k(0x37, false, true), k(0xC0, false, false), k(0x32, true, false)]);
+    }
+
+    #[test]
+    fn dead_keys_and_missing_chars_fall_back_to_unicode_in_auto() {
+        let plan = plan_for("^´ñ😀", TypeMethod::Auto, &de()).unwrap();
+        assert_eq!(plan, vec![TypeStep::Unit('^' as u16), TypeStep::Unit('´' as u16), TypeStep::Unit('ñ' as u16), TypeStep::Unit(0xD83D), TypeStep::Unit(0xDE00)]);
+    }
+
+    #[test]
+    fn ctrl_only_or_control_chars_are_never_sent_as_shortcuts() {
+        assert_eq!(keystroke_for('\u{1}', &de()), None);
+    }
+
+    #[test]
+    fn newline_and_tab_stay_enter_and_tab_in_every_method() {
+        for m in [TypeMethod::Auto, TypeMethod::Keys, TypeMethod::Unicode] {
+            assert_eq!(plan_for("a\r\nb\t", m, &us(false)).unwrap()[1..], [TypeStep::Enter, if m == TypeMethod::Unicode { TypeStep::Unit('b' as u16) } else { k(0x42, false, false) }, TypeStep::Tab]);
+        }
+    }
+
+    #[test]
+    fn unicode_method_never_sends_keystrokes() {
+        assert_eq!(plan_for("aZ", TypeMethod::Unicode, &us(false)).unwrap(), vec![TypeStep::Unit('a' as u16), TypeStep::Unit('Z' as u16)]);
+    }
+
+    #[test]
+    fn keys_only_refuses_up_front_when_a_char_is_not_on_the_layout() {
+        let e = plan_for("hi 😀", TypeMethod::Keys, &us(false)).unwrap_err();
+        assert!(e.contains("😀"), "{e}");
+        assert!(plan_for("hi", TypeMethod::Keys, &us(false)).is_ok());
+    }
+
+    #[test]
+    fn keystroke_events_press_and_release_modifiers_around_the_key() {
+        let ev = keystroke_events(&KeyStroke { vk: 0x51, scan: 0x10, shift: false, altgr: true });
+        let names: Vec<(u16, bool)> = ev.iter().map(|e| (e.0, e.2)).collect();
+        assert_eq!(names, vec![(VK_LCONTROL.0, false), (VK_RMENU.0, false), (0x51, false), (0x51, true), (VK_RMENU.0, true), (VK_LCONTROL.0, true)]);
+        assert!(ev[1].3 && ev[4].3, "right Alt is an extended key");
+        let ev = keystroke_events(&KeyStroke { vk: 0x41, scan: 0x1E, shift: true, altgr: false });
+        assert_eq!(ev.iter().map(|e| (e.0, e.1, e.2)).collect::<Vec<_>>(), vec![(VK_LSHIFT.0, 0x2A, false), (0x41, 0x1E, false), (0x41, 0x1E, true), (VK_LSHIFT.0, 0x2A, true)]);
+        assert_eq!(TypeMethod::parse(Some("keys")), TypeMethod::Keys);
+        assert_eq!(TypeMethod::parse(Some("bogus")), TypeMethod::Auto);
+        assert_eq!(TypeMethod::parse(None), TypeMethod::Auto);
+    }
+
+    #[test]
+    fn real_windows_layout_maps_ascii_to_keystrokes() {
+        // The real VkKeyScanEx / ToUnicodeEx path on this PC's layout (en-US here; other
+        // Latin layouts also have these characters). Emoji always fall back to Unicode.
+        let l = WinLayout::current_thread();
+        let plan = plan_for("Hello, World! 123", TypeMethod::Auto, &l).unwrap();
+        assert!(plan.iter().all(|s| matches!(s, TypeStep::Key(_))), "layout {}: {:?}", l.id(), plan);
+        if let TypeStep::Key(k) = plan[0] {
+            assert_eq!(k.vk, 0x48);
+            assert!(k.scan != 0);
+        }
+        assert_eq!(plan_for("😀", TypeMethod::Auto, &l).unwrap(), vec![TypeStep::Unit(0xD83D), TypeStep::Unit(0xDE00)]);
+    }
 
     #[test]
     fn plan_handles_newlines_tabs_and_surrogates() {

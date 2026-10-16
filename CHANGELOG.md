@@ -4,6 +4,12 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.12
+
+- **Fixed: garbled typing with keyboard/mouse sharing tools.** Cadabra typed every character as a Unicode packet; tools with low-level keyboard hooks (Input Director here) re-inject keys by scan code and turned those packets into random letters, while Cadabra reported success. Now, by default (*Auto*), each character that exists on the target window's keyboard layout is typed as a real keystroke: the right key and scan code for that layout, with Shift or AltGr pressed and released around it. Characters a layout can only reach through a dead key, and anything not on the layout (emoji, other scripts), are still sent as Unicode. Enter, Tab and Esc-to-stop work as before.
+- **Settings → Advanced → Typing method:** *Auto (recommended)*, *Real keystrokes only* (refuses up front if a character isn't on the layout) or *Unicode only* (the old behaviour).
+- **Typing is checked:** after typing into a control Cadabra can read (Notepad, edit fields), it reads the text back. If it didn't come out right, the action fails with a plain reason (naming Input Director or another sharing tool if one is running) instead of claiming success. The AI may retry once, and Cadabra uses the other typing method for that retry; after a second failure Cadabra stops typing for that request and tells you, with no clear-and-retype loop. Password fields are never read.
+
 ## 0.9.11
 
 - **Show Cadabra in screen recordings and screen sharing** (Settings → Privacy, and **Presenting mode** in the tray). Cadabra's windows were always hidden from recordings, screenshots and shared screens, which kept private chats off shared screens but also meant demos couldn't be recorded. It's still off by default; turned on, the panel, ghost cursor, highlight rings, confirm cards and the WhatsApp pill show in OBS, Game Bar, the Snipping Tool, Teams and Zoom. It applies at once, is remembered across restarts, and a red **● Visible** badge in the panel header shows while it's on.

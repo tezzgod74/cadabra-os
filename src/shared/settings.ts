@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   claudeRoute: 'api-key',
   webAccess: true,
   claudeApiWeb: true,
+  typingMethod: 'auto',
   skills: { enabled: {} },
   announcements: { ...DEFAULT_ANNOUNCEMENTS },
   privacy: { keepHistory: 'until-cleared', showInRecordings: false },
@@ -64,6 +65,7 @@ export function mergeSettings(raw: unknown, defaults: Settings = DEFAULT_SETTING
   if (typeof raw.displayName === 'string') out.displayName = raw.displayName.trim().slice(0, 40);
   if (typeof raw.webAccess === 'boolean') out.webAccess = raw.webAccess;
   if (typeof raw.claudeApiWeb === 'boolean') out.claudeApiWeb = raw.claudeApiWeb;
+  if (raw.typingMethod === 'auto' || raw.typingMethod === 'keys' || raw.typingMethod === 'unicode') out.typingMethod = raw.typingMethod;
   if (isObj(raw.announcements)) out.announcements = mergeAnnouncements(raw.announcements);
   if (isObj(raw.privacy)) {
     if (raw.privacy.keepHistory === 'until-cleared' || raw.privacy.keepHistory === 'on-close' || raw.privacy.keepHistory === 'idle-1h') out.privacy.keepHistory = raw.privacy.keepHistory;
@@ -171,7 +173,7 @@ export function applyPatch(cur: Settings, patch: Partial<Settings>): Settings {
 export function sanitizeRendererPatch(raw: unknown): Partial<Settings> {
   if (!isObj(raw)) return {};
   const out: Record<string, unknown> = {};
-  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'claudeApiWeb', 'location', 'greetings', 'announcements', 'privacy'] as const) {
+  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'claudeApiWeb', 'location', 'greetings', 'announcements', 'privacy', 'typingMethod'] as const) {
     if (k in raw) out[k] = raw[k];
   }
   // Only the autonomy level is a renderer preference (grants have their own IPC). A partial

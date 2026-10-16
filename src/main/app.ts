@@ -316,6 +316,8 @@ export class CadabraApp {
       transcribe: async (bytes) => (this.voice instanceof SherpaVoiceEngine ? this.voice.transcribeAudio(bytes) : null),
     });
     this.tools.remote = { sendScreenshot: (caption) => this.sendScreenshotToWhatsApp(caption) };
+    // 0.9.12: Settings → Advanced → Typing method.
+    this.tools.typingMethod = () => this.settings.get().typingMethod;
     // 0.9.5: skills (built-in + the user's own folder), hot-reloaded, offered to every backend.
     this.skills = skillRegistryFor({
       dirs: this.skillDirs(),

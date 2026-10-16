@@ -1,6 +1,6 @@
 [package]
 name = "cadabra-helper"
-version = "0.9.11"
+version = "0.9.12"
 license = "MIT"
 edition = "2021"
 description = "Cadabra OS native helper: mouse hook, UI Automation, capture and input over stdin/stdout JSON-RPC"

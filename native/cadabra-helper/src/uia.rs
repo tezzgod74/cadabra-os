@@ -370,6 +370,39 @@ pub fn invoke(p: &Value) -> RpcResult {
     })
 }
 
+/// 0.9.12: the text of the focused control, to check what type_text produced.
+/// TextPattern (documents, e.g. Notepad) or ValuePattern (edit fields). Never
+/// reads password fields. `text` is null when it can't be read.
+pub const FOCUSED_TEXT_MAX: i32 = 200_000;
+
+pub fn focused_text() -> RpcResult {
+    with_state(|st| unsafe {
+        let el = st.auto.GetFocusedElement().map_err(|e| e.to_string())?;
+        let ct = el.CurrentControlType().map(|c| c.0).unwrap_or(0);
+        let class = el.CurrentClassName().map(|b| b.to_string()).unwrap_or_default();
+        let pid = el.CurrentProcessId().unwrap_or(0);
+        let base = json!({"role": control_type_name(ct), "className": class, "pid": pid});
+        if el.CurrentIsPassword().map(|b| b.as_bool()).unwrap_or(false) {
+            return Ok(json!({"info": base, "text": null, "why": "password"}));
+        }
+        if let Ok(tp) = el.GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId) {
+            if let Ok(t) = tp.DocumentRange().and_then(|r| r.GetText(FOCUSED_TEXT_MAX + 1)) {
+                let s = t.to_string();
+                if s.chars().count() > FOCUSED_TEXT_MAX as usize {
+                    return Ok(json!({"info": base, "text": null, "why": "too long"}));
+                }
+                return Ok(json!({"info": base, "text": s, "source": "text"}));
+            }
+        }
+        if let Ok(vp) = el.GetCurrentPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId) {
+            if let Ok(v) = vp.CurrentValue() {
+                return Ok(json!({"info": base, "text": v.to_string(), "source": "value"}));
+            }
+        }
+        Ok(json!({"info": base, "text": null, "why": "unreadable"}))
+    })
+}
+
 pub fn set_value(p: &Value) -> RpcResult {
     let id = elem_id(p)?;
     let value = p.get("value").and_then(|v| v.as_str()).ok_or("missing value")?.to_string();

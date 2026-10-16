@@ -16,7 +16,7 @@ export function toolHelperFor(h: () => HelperClient): HelperLike {
     uiTree: (p) => h().uiTree(p),
     elementInfo: (id) => h().elementInfo(id),
     click: (x, y, b, c) => h().click(x, y, b, c),
-    typeText: (t) => h().typeText(t),
+    typeText: (t, o) => h().typeText(t, o),
     pressKeys: (k, r) => h().pressKeys(k, r),
     scroll: (p) => h().scroll(p),
     invoke: (id) => h().invoke(id),
@@ -29,6 +29,7 @@ export function toolHelperFor(h: () => HelperClient): HelperLike {
     focusedElement: () => h().focusedElement(),
     inputState: () => h().inputState(),
     windowInfo: (hwnd) => h().windowInfo(hwnd),
+    focusedText: () => h().focusedText(),
   };
 }
 
@@ -51,6 +52,7 @@ export const TOOL_HELPER_KEYS = {
   focusedElement: 'focusedElement',
   inputState: 'inputState',
   windowInfo: 'windowInfo',
+  focusedText: 'focusedText',
 } as const satisfies Record<keyof HelperLike, keyof HelperClient>;
 
 /** The app launcher's window access (the shell parts come from Electron). */

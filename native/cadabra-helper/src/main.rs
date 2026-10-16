@@ -128,7 +128,7 @@ pub enum Lane {
 pub fn lane_of(method: &str) -> Lane {
     match method {
         "ping" | "cancel" | "buffer_keys" | "take_buffered_keys" | "set_hook_enabled" | "set_binding" | "binding_status" | "set_ptt_enabled" | "arm_activity" | "reinstall_hooks" | "install_hooks" | "cursor_pos" | "input_state" => Lane::Inline,
-        "ui_tree_at" | "element_at" | "element_info" | "invoke" | "set_value" | "focus_element" | "caret_rect" | "focused_element" => Lane::Uia,
+        "ui_tree_at" | "element_at" | "element_info" | "invoke" | "set_value" | "focus_element" | "caret_rect" | "focused_element" | "focused_text" => Lane::Uia,
         "click" | "move_cursor" | "type_text" | "press_keys" | "scroll" => Lane::Input,
         "capture" => Lane::Capture,
         _ => Lane::Control,
@@ -245,6 +245,7 @@ fn dispatch(method: &str, p: &Value) -> RpcResult {
         "set_value" => uia::set_value(p),
         "focus_element" => uia::focus(p),
         "focused_element" => uia::focused_element(),
+        "focused_text" => uia::focused_text(),
         "capture" => capture::capture(p),
         "click" => input::click(p),
         "move_cursor" => input::move_cursor(p),

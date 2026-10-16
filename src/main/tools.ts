@@ -13,6 +13,7 @@ import { checkCommand } from '../shared/terminal';
 import type { ActionRequest, FocusInfo } from '../shared/safety';
 import { cameFromScreen, fenceScreen, newFenceNonce } from '../shared/fence';
 import { kvmMessage, likelyRemote, runningKvmTools } from './kvm';
+import { checkTyped, insertedText, mismatchMessage, otherMethod, type TypingMethod } from './typing-verify';
 import { checkWeb, type WebTool } from '../shared/web-guard';
 import { hostNamedByUser, registrableDomain } from '../shared/domains';
 import { isBrowser } from '../shared/safety';
@@ -114,6 +115,10 @@ export interface RunState {
   localActions?: import('./claims').ClaimKind[];
   /** Round 11: every tool call this run and whether it worked (for the honesty check). */
   toolResults?: { name: string; ok: boolean; code: string }[];
+  /** 0.9.12: type_text read-backs that didn't match this run (1 → one retry with the other method; 2 → stop). */
+  typeMismatches?: number;
+  /** 0.9.12: the typing method of the last mismatch. */
+  typeMismatchMethod?: import('./typing-verify').TypingMethod;
 }
 
 /** Bounded screen corpus for provenance checks. */
@@ -145,6 +150,8 @@ export type HelperLike = Pick<
   | 'focusedElement'
   | 'inputState'
   | 'windowInfo'
+  // 0.9.12: read-back after type_text.
+  | 'focusedText'
 >;
 
 /** Round 11.6: warn (once per lookup kind) when a safety lookup isn't available at run time. */
@@ -275,6 +282,10 @@ export class ToolHost {
   kvmProbe: () => Promise<string[]> = () => runningKvmTools();
   /** Delay before re-reading a field after typing (KVM check). */
   verifyDelayMs = 400;
+  /** 0.9.12: Settings → Advanced → Typing method (the app wires it to settings). */
+  typingMethod: () => TypingMethod = () => 'auto';
+  /** 0.9.12: first read-back delay after typing. */
+  readBackDelayMs = 250;
 
   constructor(
     private readonly helper: HelperLike,
@@ -759,8 +770,23 @@ export class ToolHost {
         this.live(r);
         if (a.replace) await this.helper.pressKeys('ctrl+a');
       }
+      // 0.9.12: after one read-back mismatch this run, the retry uses the other method; after two, stop.
+      if ((r.typeMismatches ?? 0) >= 2)
+        return { ...text(mismatchMessage({ attempt: 2, method: r.typeMismatchMethod ?? this.typingMethod(), kvm: await this.kvmProbe().catch(() => []), target: this.typingTarget(r, node) }), true), _meta: { code: 'typing-stopped' } };
+      const method: TypingMethod = r.typeMismatches === 1 && r.typeMismatchMethod ? otherMethod(r.typeMismatchMethod) : this.typingMethod();
+      const before = await this.readFocusedText();
       this.live(r);
-      await this.helper.typeText(a.text);
+      await this.helper.typeText(a.text, { method, ...(r.target?.hwnd ? { hwnd: r.target.hwnd } : {}) });
+      const verdict = await this.verifyTyped(before, a.text);
+      if (verdict.check === 'mismatch') {
+        r.typeMismatches = (r.typeMismatches ?? 0) + 1;
+        r.typeMismatchMethod = method;
+        const kvm = await this.kvmProbe().catch(() => [] as string[]);
+        const preview = verdict.arrived ? this.fence(r, verdict.arrived.slice(0, 60)) : undefined;
+        console.warn(`[input] type_text read-back mismatch (method ${method}, attempt ${r.typeMismatches}${kvm.length ? `, ${kvm.join(', ')} running` : ''})`);
+        return { ...text(mismatchMessage({ attempt: r.typeMismatches, method, kvm, arrivedPreview: preview, target: this.typingTarget(r, node) }), true), _meta: { code: 'typing-mismatch' } };
+      }
+      if (verdict.check === 'ok' && r.typeMismatches) r.typeMismatches = 0; // the retry worked
       // Software KVMs can swallow injected keys without SendInput failing. If one
       // is running, check the field once more after a short delay. REVIEW-4 R4-1:
       // this never fails the action (the text usually DID arrive; fields lag,
@@ -782,6 +808,33 @@ export class ToolHost {
       }
       return text(`Typed ${a.text.length} characters.${note}${this.elevNote(r)}`);
     });
+
+  private typingTarget(r: RunState, node?: UiNode): string {
+    return node?.name ? `"${node.name}"` : r.target?.process ? `${r.target.process}` : 'the target window';
+  }
+
+  /** 0.9.12: the focused control's text, or null when it can't be read (never throws). */
+  private async readFocusedText(): Promise<string | null> {
+    try {
+      return (await this.helper.focusedText()).text ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 0.9.12: read back after typing (short delay, then once more if it doesn't match yet). */
+  private async verifyTyped(before: string | null, typed: string): Promise<{ check: 'ok' | 'mismatch' | 'unknown'; arrived?: string }> {
+    if (before == null) return { check: 'unknown' };
+    await sleep(this.readBackDelayMs);
+    let after = await this.readFocusedText();
+    let check = checkTyped(before, after, typed);
+    if (check === 'mismatch') {
+      await sleep(this.verifyDelayMs); // apps can lag behind the keystrokes
+      after = await this.readFocusedText();
+      check = checkTyped(before, after, typed);
+    }
+    return { check, arrived: check === 'mismatch' && after != null ? insertedText(before.replace(/\r\n?/g, '\n'), after.replace(/\r\n?/g, '\n')) : undefined };
+  }
 
   pressKeys = (a: { keys: string; repeat?: number; description?: string }) =>
     this.guarded(async (r) => {
@@ -1468,7 +1521,7 @@ export class ToolHost {
       {
         name: 'type_text',
         readOnly: false,
-        description: 'Type text into the target app. With `element`, focuses that field first; `replace: true` replaces its contents.',
+        description: 'Type text into the target app. With `element`, focuses that field first; `replace: true` replaces its contents. Cadabra reads the field back afterwards: if it says the text didn\'t come out right, don\'t claim it was typed; retry at most once (Cadabra switches typing method), then stop and tell the user.',
         shape: {
           text: z.string(),
           element: elem,

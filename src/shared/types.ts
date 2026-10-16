@@ -125,6 +125,8 @@ export interface Settings {
   webAccess: boolean;
   /** 0.9.3: web search for Claude's API-key / Bedrock / Vertex routes (runs Claude Code without --bare so Cadabra's web guard hook works). */
   claudeApiWeb: boolean;
+  /** 0.9.12: how type_text sends characters (Settings → Advanced). */
+  typingMethod: 'auto' | 'keys' | 'unicode';
   /** 0.9.5: skills the user turned on or off, by id ("user:quick-note"). Missing = default (built-ins on, others off). */
   skills: { enabled: Record<string, boolean> };
   /** 0.9.9: how long chat history is kept (it's mostly in memory anyway). */

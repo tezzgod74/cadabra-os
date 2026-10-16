@@ -141,6 +141,13 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] Settings, skills, keys and WhatsApp pairing are all still there afterwards.
 - [ ] With *Until I clear it* (the default), quit and restart: your Codex / Gemini / Claude sessions are still there (only leftover temp files older than a day are removed).
 
+### Typing (0.9.12)
+
+- [ ] Say *"open Notepad and type hello world, testing 123!"*: Notepad shows exactly that text.
+- [ ] With a keyboard/mouse sharing tool running (Input Director, Mouse Without Borders…), do the same: the text is legible. If it isn't, Cadabra says the text didn't come out right and names the tool, instead of claiming it typed it; it tries the other typing method once at most, then stops.
+- [ ] Settings → Advanced → *Typing method*: try *Real keystrokes only* and *Unicode only*; with *Real keystrokes only*, typing an emoji is refused up front.
+- [ ] On a German (or other non-US) layout, type `zy@€{` into Notepad: it comes out exactly.
+
 ### Recording a demo
 
 Tip: to record or screen-share Cadabra, tick **Presenting mode** in the tray (or Settings → Privacy → *Show Cadabra in screen recordings and screen sharing*). Turn it off again when you're done; while it's on, the panel header shows a red **● Visible** badge.
