@@ -76,7 +76,7 @@ describe('0.9.12 type_text verifies, reports honestly, retries once with the oth
     expect(calls).toEqual([{ text: 'hello world', method: 'auto', hwnd: 7 }]);
   });
 
-  it('garbled text: ok:false, says it didn’t come out right, names Input Director, offers ONE retry (real keystrokes, slower)', async () => {
+  it('garbled text: ok:false, says it didn’t come out right, names Input Director, says stop (0.9.14: never clear and retype); a later type_text still uses slower real keystrokes', async () => {
     const { host, calls } = notepad((t, m) => (m === 'unicode' ? shift(t) : t));
     host.typingMethod = () => 'unicode';
     const res = await host.typeText({ text: 'hello world' });
@@ -86,7 +86,8 @@ describe('0.9.12 type_text verifies, reports honestly, retries once with the oth
     expect(msg).toMatch(/Input Director is running on this PC/);
     expect(msg).toMatch(/Don't claim it was typed/);
     expect(msg).toMatch(/ifmmp!xpsme/); // what arrived, fenced as screen data
-    expect(msg).toMatch(/real keystrokes/);
+    expect(msg).toMatch(/don't clear, select-all or retype anything/);
+    expect(msg).toMatch(/Stop and tell the user plainly/);
     expect(host.run!.typeMismatches).toBe(1);
     // The retry uses real keystrokes, slower, automatically, and works.
     const again = await host.typeText({ text: 'hello world' });

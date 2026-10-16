@@ -150,6 +150,12 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] Ask for a British-spelled sentence in Notepad (*"type: ants live in highly organised colonies"*). If Notepad autocorrects it to "organized", Cadabra says so and doesn't clear and retype it.
 - [ ] Settings → Advanced → *Unicode only*: a long sentence still comes out exactly, just more slowly.
 
+### Your unsaved text is safe (0.9.14)
+
+- [ ] Open Notepad yourself, type a few lines and don't save. Close it (Notepad keeps the unsaved tab). Then say *"open Notepad and type hello"*: Cadabra opens a new tab and types there; your tab still has your text.
+- [ ] Ask Cadabra to *"select all and delete"* in a Notepad tab with your own text: a card asks *"Erase N characters of text in Notepad?"*. **Not now** leaves it untouched.
+- [ ] Ask Cadabra to type something, then *"clear that and write something else"*: no card (it's Cadabra's own text from this request).
+
 ### Recording a demo
 
 Tip: to record or screen-share Cadabra, tick **Presenting mode** in the tray (or Settings → Privacy → *Show Cadabra in screen recordings and screen sharing*). Turn it off again when you're done; while it's on, the panel header shows a red **● Visible** badge.

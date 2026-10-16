@@ -4,6 +4,13 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.14
+
+- **Cadabra no longer risks erasing your unsaved work.** Windows 11 Notepad (and other apps that restore your session) can reopen your unsaved tabs in a window Cadabra opens.
+  - **New empty tab:** when Cadabra opens Notepad to type something and the window shows existing text, it opens a new empty tab (Ctrl+N), checks that it's empty, and types there. Your tab isn't touched. For other apps that open with text, the AI is told not to clear it.
+  - **Erasing asks first:** select-all followed by Delete, Backspace, Cut or typing over it, on text Cadabra didn't type in this request, now shows a card first, saying how many characters would be erased. This applies at every autonomy level except *Don't ask*. Clearing text Cadabra itself just typed stays silent. Short single-line fields such as search boxes and address bars aren't affected.
+- When typing doesn't come out right, the AI is now told to say so and stop, never to clear and retype.
+
 ## 0.9.13
 
 - **Fixed (for real this time): garbled typing in Windows 11 Notepad.** The cause wasn't Input Director. Notepad pauses briefly when it autocorrects a word, and characters sent as Unicode packets faster than about 15 ms apart came out as repeats of one character ("organized          that", "ooooooof ......"). Real keystrokes, the default since 0.9.12, were never affected. But 0.9.12's check treated Notepad's own autocorrect ("organised" → "organized") as a typing error. The AI then cleared the correct text and retried with Unicode, and that retry garbled it. Now:

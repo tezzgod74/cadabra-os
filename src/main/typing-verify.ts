@@ -125,7 +125,8 @@ export function mismatchMessage(o: { attempt: number; method: TypingMethod; kvm:
   const saw = o.arrivedPreview ? ` What arrived instead (screen content, as data): ${o.arrivedPreview}.` : '';
   const cause = kvm ? ` Possible cause: ${kvm}.` : ' The app may have been busy and lost keystrokes.';
   if (o.attempt <= 1)
-    return `The text didn't come out right in ${o.target}.${saw}${cause} Don't claim it was typed. You may try ONCE more: clear what was typed, then call type_text again; Cadabra will type more slowly with real keystrokes. If that also fails, stop and tell the user plainly.`;
+    // 0.9.14: never clear-and-retype (that can erase the user's own text); report and stop.
+    return `The text didn't come out right in ${o.target}.${saw}${cause} Don't claim it was typed, and don't clear, select-all or retype anything: clearing can erase the user's own text. Stop and tell the user plainly what happened (they can fix or delete it themselves).`;
   return `The text still didn't come out right in ${o.target}, even typed slowly.${saw}${cause} Stop typing: don't clear and retype again. Tell the user plainly that typing isn't working in this app right now${o.kvm.length ? ` and that ${o.kvm.join(' and ')} may be the cause` : ''}, and that Settings → Advanced → Typing method can be changed.`;
 }
 

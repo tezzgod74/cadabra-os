@@ -381,7 +381,8 @@ pub fn focused_text() -> RpcResult {
         let ct = el.CurrentControlType().map(|c| c.0).unwrap_or(0);
         let class = el.CurrentClassName().map(|b| b.to_string()).unwrap_or_default();
         let pid = el.CurrentProcessId().unwrap_or(0);
-        let base = json!({"role": control_type_name(ct), "className": class, "pid": pid});
+        let hwnd = el.CurrentNativeWindowHandle().map(|h| h.0 as isize).unwrap_or(0);
+        let base = json!({"role": control_type_name(ct), "className": class, "pid": pid, "hwnd": hwnd});
         if el.CurrentIsPassword().map(|b| b.as_bool()).unwrap_or(false) {
             return Ok(json!({"info": base, "text": null, "why": "password"}));
         }

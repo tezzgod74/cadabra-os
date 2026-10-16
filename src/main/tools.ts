@@ -14,6 +14,7 @@ import type { ActionRequest, FocusInfo } from '../shared/safety';
 import { cameFromScreen, fenceScreen, newFenceNonce } from '../shared/fence';
 import { kvmMessage, likelyRemote, runningKvmTools } from './kvm';
 import { checkTypedDetail, correctionNote, insertedText, mismatchMessage, retryPlan, type TypingMethod } from './typing-verify';
+import { controlKey, eraseCheck, eraseReason, isEraseKey, isSelectAll, newDocumentKeys, type FocusedInfo, type LedgerEntry } from './text-guard';
 import { checkWeb, type WebTool } from '../shared/web-guard';
 import { hostNamedByUser, registrableDomain } from '../shared/domains';
 import { isBrowser } from '../shared/safety';
@@ -119,6 +120,12 @@ export interface RunState {
   typeMismatches?: number;
   /** 0.9.12: the typing method of the last mismatch. */
   typeMismatchMethod?: import('./typing-verify').TypingMethod;
+  /** 0.9.14: the last action selected everything (Ctrl+A); an erase right after it is checked. */
+  selectAllPending?: boolean;
+  /** 0.9.14: per text control, what Cadabra typed there this turn (to tell its own text from the user's). */
+  typedLedger?: Map<string, LedgerEntry>;
+  /** 0.9.14: the empty document Cadabra opened to type into (a new Notepad tab). */
+  typeTarget?: string;
 }
 
 /** Bounded screen corpus for provenance checks. */
@@ -727,9 +734,12 @@ export class ToolHost {
       if (a.element != null) ({ p, node } = await this.resolveTarget(r, { element: a.element }));
       // Where will the keystrokes land? (IDE terminal pane, Explorer address bar…)
       const focus: FocusInfo | undefined = node ? { role: node.role, name: node.name, aid: node.aid, verified: true } : await this.focusInfo(r);
+      // 0.9.14: typing over a select-all (or replace: true) erases what's there.
+      const erases = await this.eraseInfo(r, { replace: !!a.replace, node });
       await this.gate.authorize(this.gateRun(r), {
         kind: 'type_text',
         text: a.text,
+        ...(erases ? { erases } : {}),
         elementName: node?.name,
         elementId: node?.id,
         hwnd: r.target?.hwnd,
@@ -775,10 +785,20 @@ export class ToolHost {
         return { ...text(mismatchMessage({ attempt: 2, method: r.typeMismatchMethod ?? this.typingMethod(), kvm: await this.kvmProbe().catch(() => []), target: this.typingTarget(r, node) }), true), _meta: { code: 'typing-stopped' } };
       const retry = r.typeMismatches === 1 && r.typeMismatchMethod ? retryPlan(r.typeMismatchMethod) : null;
       const method: TypingMethod = retry?.method ?? this.typingMethod();
-      const before = await this.readFocusedText();
+      const replacing = r.selectAllPending || !!a.replace;
+      r.selectAllPending = false;
+      const beforeF = await this.readFocused();
+      const before = beforeF?.text ?? null;
       this.live(r);
       await this.helper.typeText(a.text, { method, ...(retry ? { delayMs: retry.delayMs } : {}), ...(r.target?.hwnd ? { hwnd: r.target.hwnd } : {}) });
       const verdict = await this.verifyTyped(before, a.text);
+      // 0.9.14: remember what this control held before Cadabra's typing this turn, and after it.
+      if (beforeF?.info) {
+        const key = controlKey(beforeF.info);
+        const ledger = (r.typedLedger ??= new Map());
+        const prev = ledger.get(key);
+        ledger.set(key, { baseline: replacing ? '' : prev ? prev.baseline : before, last: verdict.after ?? null });
+      }
       if (verdict.check === 'mismatch') {
         r.typeMismatches = (r.typeMismatches ?? 0) + 1;
         r.typeMismatchMethod = method;
@@ -817,16 +837,51 @@ export class ToolHost {
 
   /** 0.9.12: the focused control's text, or null when it can't be read (never throws). */
   private async readFocusedText(): Promise<string | null> {
+    return (await this.readFocused())?.text ?? null;
+  }
+
+  /** 0.9.14: the focused control's text and identity (null when the helper can't tell). */
+  private async readFocused(): Promise<{ text: string | null; info: FocusedInfo } | null> {
     try {
-      return (await this.helper.focusedText()).text ?? null;
+      const f = await this.helper.focusedText();
+      return { text: f.text ?? null, info: f.info };
     } catch {
       return null;
     }
   }
 
+  /**
+   * 0.9.14: would the next action erase text Cadabra didn't type this turn?
+   * Only after a select-all (Ctrl+A) or for type_text's replace: true.
+   */
+  private async eraseInfo(r: RunState, o: { replace?: boolean; node?: UiNode }): Promise<{ chars: number | null; reason: string } | undefined> {
+    if (!r.selectAllPending && !o.replace) return undefined;
+    let cur: string | null;
+    let info: FocusedInfo | null;
+    if (o.node && o.replace) {
+      // A named field: its value from the accessibility tree (single-line fields are routinely replaced).
+      const v = (await this.helper.elementInfo(o.node.id).catch(() => undefined))?.value;
+      cur = v ?? null;
+      info = { role: o.node.role, className: '', pid: r.target?.pid ?? 0 };
+      if (cur != null) {
+        const ours = [...(r.typedLedger?.values() ?? [])].some((e) => e.baseline != null && !e.baseline.trim() && e.last != null && e.last.replace(/\r\n?/g, '\n') === cur!.replace(/\r\n?/g, '\n'));
+        if (ours) return undefined;
+      }
+    } else {
+      const f = await this.readFocused();
+      cur = f?.text ?? null;
+      info = f?.info ?? null;
+    }
+    const entry = info ? r.typedLedger?.get(controlKey(info)) : undefined;
+    const e = eraseCheck(cur, info, entry);
+    if (!e) return undefined;
+    console.log(`[gate] erase check: ${e.chars ?? 'unknown'} character(s) Cadabra didn't type`);
+    return { chars: e.chars, reason: eraseReason(e.chars) };
+  }
+
   /** 0.9.12: read back after typing (short delay, then once more if it doesn't match yet). */
-  private async verifyTyped(before: string | null, typed: string): Promise<{ check: 'ok' | 'corrected' | 'mismatch' | 'unknown'; arrived?: string; corrections?: [string, string][] }> {
-    if (before == null) return { check: 'unknown' };
+  private async verifyTyped(before: string | null, typed: string): Promise<{ check: 'ok' | 'corrected' | 'mismatch' | 'unknown'; arrived?: string; corrections?: [string, string][]; after?: string | null }> {
+    if (before == null) return { check: 'unknown', after: null };
     await sleep(this.readBackDelayMs);
     let after = await this.readFocusedText();
     let v = checkTypedDetail(before, after, typed);
@@ -836,16 +891,20 @@ export class ToolHost {
       v = checkTypedDetail(before, after, typed);
     }
     if (v.check === 'corrected') console.log(`[input] type_text: the app auto-corrected ${v.corrections.length} word(s)`);
-    return { check: v.check, corrections: v.corrections, arrived: v.check === 'mismatch' && after != null ? insertedText(before.replace(/\r\n?/g, '\n'), after.replace(/\r\n?/g, '\n')) : undefined };
+    return { check: v.check, corrections: v.corrections, after, arrived: v.check === 'mismatch' && after != null ? insertedText(before.replace(/\r\n?/g, '\n'), after.replace(/\r\n?/g, '\n')) : undefined };
   }
 
   pressKeys = (a: { keys: string; repeat?: number; description?: string }) =>
     this.guarded(async (r) => {
       this.assertControllable(r);
       const focus = await this.focusInfo(r);
+      // 0.9.14: Ctrl+A, then Delete / Backspace / Cut, on text Cadabra didn't type asks first.
+      const erasing = isEraseKey(a.keys) && r.selectAllPending;
+      const erases = erasing ? await this.eraseInfo(r, {}) : undefined;
       await this.gate.authorize(this.gateRun(r), {
         kind: 'press_keys',
         keys: a.keys,
+        ...(erases ? { erases } : {}),
         hwnd: r.target?.hwnd,
         process: r.target?.process,
         title: r.target?.title,
@@ -860,6 +919,12 @@ export class ToolHost {
       this.live(r);
       await this.helper.pressKeys(a.keys, Math.min(Math.max(a.repeat ?? 1, 1), 20));
       await sleep(150);
+      r.selectAllPending = isSelectAll(a.keys);
+      if (erasing) {
+        // The control was cleared (with the user's OK if it wasn't Cadabra's text): what's typed next is Cadabra's.
+        const f = await this.readFocused();
+        if (f) (r.typedLedger ??= new Map()).set(controlKey(f.info), { baseline: f.text, last: f.text });
+      }
       return text(`Pressed ${a.keys}${(a.repeat ?? 1) > 1 ? ` ×${a.repeat}` : ''}.${this.elevNote(r)}`);
     });
 
@@ -968,6 +1033,8 @@ export class ToolHost {
             return { ...text(`Not done (${ready.code}): ${ready.message}`, true), _meta: { code: ready.code } };
           }
         }
+        // 0.9.14: a click, scroll or launch moves the selection; only press_keys / type_text continue a select-all.
+        if (run && !d.readOnly && d.name !== 'press_keys' && d.name !== 'type_text') run.selectAllPending = false;
         try {
           res = await d.handler(args);
         } catch (e) {
@@ -1334,7 +1401,44 @@ export class ToolHost {
     r.nodes = new Map();
     const ready = await this.waitReady(r);
     console.log(`[tool] launch_app: target is now the new window (${ready ? 'ready' : 'not in front yet'})`);
-    return text(ready ? `${msg} Its window is in front and ready: type_text / press_keys / click now go to it.` : `${msg} It's now the target window, but it isn't in front yet; type_text will bring it forward first.`);
+    const restored = ready ? await this.ensureEmptyDocument(r) : '';
+    return text((ready ? `${msg} Its window is in front and ready: type_text / press_keys / click now go to it.` : `${msg} It's now the target window, but it isn't in front yet; type_text will bring it forward first.`) + restored);
+  }
+
+  /** 0.9.14: wait for the new empty document after Ctrl+N (Notepad opens a tab asynchronously). */
+  newDocWaitMs = 2000;
+
+  /**
+   * 0.9.14: an app that restores the user's unsaved tabs (Windows 11 Notepad) may
+   * open with their text in front. Cadabra then opens a new empty tab and types
+   * there; the user's tab is never touched. Returns a note for the model.
+   */
+  private async ensureEmptyDocument(r: RunState): Promise<string> {
+    const f = await this.readFocused();
+    if (!f || !r.target || f.info.pid !== r.target.pid) return '';
+    if (f.text == null || !f.text.trim()) {
+      if (f.text != null) r.typeTarget = controlKey(f.info);
+      return '';
+    }
+    const keys = newDocumentKeys(r.target.process, f.info.className);
+    const appName = (r.target.process ?? 'The app').replace(/\.exe$/i, '');
+    if (!keys) return ` Note: ${appName} opened with existing text in it (it may be the user's unsaved work). Don't clear, select-all or replace it; type only where the user asked.`;
+    const restoredKey = controlKey(f.info);
+    this.live(r);
+    await this.helper.pressKeys(keys);
+    const deadline = Date.now() + this.newDocWaitMs;
+    while (Date.now() < deadline) {
+      await sleep(150);
+      const g = await this.readFocused();
+      if (g && g.info.pid === r.target.pid && g.text != null && !g.text.trim() && controlKey(g.info) !== restoredKey) {
+        r.typeTarget = controlKey(g.info);
+        (r.typedLedger ??= new Map()).set(r.typeTarget, { baseline: '', last: '' });
+        console.log(`[tool] launch_app: ${appName} restored existing text; opened a new empty document (${keys})`);
+        return ` ${appName} reopened existing text (probably the user's unsaved tabs), so Cadabra opened a new empty tab for this; type there. Never clear or replace the other tabs' text.`;
+      }
+    }
+    console.warn(`[tool] launch_app: ${appName} restored existing text; no new empty document appeared`);
+    return ` Note: ${appName} opened with existing text in it (probably the user's unsaved work) and Cadabra couldn't open a new empty tab. Don't clear, select-all or replace that text; tell the user instead.`;
   }
 
   /** The target window is in front (and, when the helper can tell, has keyboard focus in its own process). */
@@ -1524,7 +1628,7 @@ export class ToolHost {
       {
         name: 'type_text',
         readOnly: false,
-        description: 'Type text into the target app. With `element`, focuses that field first; `replace: true` replaces its contents. Cadabra reads the field back afterwards: if it says the text didn\'t come out right, don\'t claim it was typed; retry at most once (Cadabra switches typing method), then stop and tell the user.',
+        description: 'Type text into the target app. With `element`, focuses that field first; `replace: true` replaces its contents. Cadabra reads the field back afterwards: if it says the text didn\'t come out right, don\'t claim it was typed and never clear or retype it; stop and tell the user. Never clear text you didn\'t type (select-all, then delete, on the user\'s text needs their OK).',
         shape: {
           text: z.string(),
           element: elem,
@@ -1581,6 +1685,7 @@ How to work:
 - HONESTY (hard rule): never say you did something (typed, clicked, opened, sent, ran…) unless that tool call's result says it worked. If a call failed, was refused or never happened, say so plainly ("I opened Notepad but couldn't type into it: …"). Cadabra checks this and corrects false claims.
 - Finish the user's goal end to end: when the next step is unambiguous (e.g. after searching Google Maps for "the nearest CVS", select the top result and start directions), do it without asking. Ask only when there is a real choice to make.
 - After launch_app, the app's window becomes the target: type_text / press_keys / click go to it.
+- Never clear text you didn't type (Ctrl+A then Delete/Backspace, or typing over a selection): an app may have reopened the user's unsaved work. If typing didn't come out right, say so and stop; don't clear and retype.
 - REMOTE (WhatsApp) turns (the context says so): the owner is away from the PC, chatting from their phone. Reply in short plain text (links are fine; no tables or headings). They can't see the screen unless they ask for a screenshot (send_screenshot). Risky actions are confirmed in the chat with a code; just make the call. Refuse anything aimed at systems or accounts the owner doesn't own (e.g. someone else's router or account).
 - Never type passwords, card numbers or secrets unless the user gave them to you in this conversation for that purpose.
 

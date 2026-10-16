@@ -128,7 +128,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.13',
+    version: '0.9.14',
   };
   return {
     onMessage: (cb) => demoChannel(cb),

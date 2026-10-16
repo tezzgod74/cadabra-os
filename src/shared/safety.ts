@@ -50,6 +50,11 @@ export interface ActionRequest {
   pageUrl?: string;
   /** Round 11.5: web content entered this turn and this unlabeled click is on a site the user didn't name. */
   offSiteAfterWeb?: boolean;
+  /**
+   * 0.9.14: this action erases text Cadabra didn't type this turn (select-all, then
+   * Delete / Backspace / Cut / typing over it). `chars` null = couldn't be read.
+   */
+  erases?: { chars: number | null; reason: string };
 }
 
 export interface FocusInfo {
@@ -356,6 +361,7 @@ export function classifyAction(req: ActionRequest, s: SafetySettings): Verdict {
 /** A stable id for a gate reason (for the log; never the payload). */
 export function reasonId(reason: string): string {
   const r = reason.toLowerCase();
+  if (/text cadabra didn.t type/.test(r)) return 'erase-text';
   if (/no window is in focus/.test(r)) return 'S4-no-target';
   if (/run box/.test(r)) return 'run-box';
   if (/^clicks “.*” on a sign-in, payment/.test(r)) return 'sensitive-page';
@@ -425,6 +431,8 @@ function classifyActionRaw(req: ActionRequest, s: SafetySettings): Verdict {
   if (rule) reasons.push(`${rule.label ?? 'Sensitive app'} (${req.process ?? req.title})`);
 
   const isInput = req.kind === 'type_text' || req.kind === 'press_keys' || req.kind === 'set_value' || req.kind === 'click' || req.kind === 'scroll';
+  // 0.9.14: erasing the user's own text (e.g. unsaved tabs an app restored) always asks first.
+  if (req.erases) reasons.push(req.erases.reason);
 
   // S4: no valid target → refuse input until see_screen/read_ui establishes one.
   if (isInput && !req.process && !req.title && req.kind !== 'scroll' && !req.hwnd) {
@@ -603,6 +611,17 @@ export function describeAction(req: ActionRequest, reasons: string[]): { title: 
   const why = reasons[0] ?? '';
   const sendLike = reasons.some((r) => /send the message|where messages are sent/.test(r));
   const compose = req.composeText ? `Message: “${req.composeText.slice(0, 300)}${req.composeText.length > 300 ? '…' : ''}”` : '';
+  // 0.9.14: erasing text Cadabra didn't type: say how much, plainly.
+  if (req.erases) {
+    const n = req.erases.chars;
+    const what = n == null ? 'the text' : `${n.toLocaleString('en-US')} character${n === 1 ? '' : 's'} of text`;
+    return {
+      title: `Erase ${what} in ${app}?`,
+      detail: 'Cadabra didn’t type this text. It may be your own unsaved work (for example a tab the app reopened).',
+      mono: req.kind === 'type_text' ? req.text : req.keys,
+      risk: `${reasons.filter((x) => x !== req.erases!.reason)[0] ?? 'Select all, then erase'} · in ${where}`,
+    };
+  }
   switch (req.kind) {
     case 'terminal':
       return { title: 'Run this command?', detail: '', mono: req.text, risk: why || 'In a terminal window' };
