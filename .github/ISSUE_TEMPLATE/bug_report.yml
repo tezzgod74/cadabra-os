@@ -28,7 +28,7 @@ body:
     attributes:
       label: Cadabra OS version
       description: Shown at the bottom of the tray menu.
-      placeholder: "0.9.12"
+      placeholder: "0.9.13"
     validations:
       required: true
   - type: dropdown

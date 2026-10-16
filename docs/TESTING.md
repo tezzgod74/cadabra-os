@@ -147,6 +147,8 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] With a keyboard/mouse sharing tool running (Input Director, Mouse Without Borders…), do the same: the text is legible. If it isn't, Cadabra says the text didn't come out right and names the tool, instead of claiming it typed it; it tries the other typing method once at most, then stops.
 - [ ] Settings → Advanced → *Typing method*: try *Real keystrokes only* and *Unicode only*; with *Real keystrokes only*, typing an emoji is refused up front.
 - [ ] On a German (or other non-US) layout, type `zy@€{` into Notepad: it comes out exactly.
+- [ ] Ask for a British-spelled sentence in Notepad (*"type: ants live in highly organised colonies"*). If Notepad autocorrects it to "organized", Cadabra says so and doesn't clear and retype it.
+- [ ] Settings → Advanced → *Unicode only*: a long sentence still comes out exactly, just more slowly.
 
 ### Recording a demo
 

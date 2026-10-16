@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { ToolHost } from '../src/main/tools';
 import { SafetyGate } from '../src/main/safety-gate';
 import { DEFAULT_SAFETY } from '../src/shared/safety';
-import { checkTyped, insertedText, otherMethod } from '../src/main/typing-verify';
+import { checkTyped, insertedText, retryPlan } from '../src/main/typing-verify';
 import { applyPatch, DEFAULT_SETTINGS, mergeSettings, sanitizeRendererPatch } from '../src/shared/settings';
 
 describe('0.9.12 read-back comparison', () => {
@@ -31,11 +31,9 @@ describe('0.9.12 read-back comparison', () => {
     expect(checkTyped('', null, 'x')).toBe('unknown');
     expect(checkTyped('', '   ', '   ')).toBe('unknown');
   });
-  it('insertedText and the alternate method', () => {
+  it('insertedText and the retry plan (0.9.13: always real keystrokes, slower; never Unicode)', () => {
     expect(insertedText('abc def', 'abc XYZ def')).toBe('XYZ ');
-    expect(otherMethod('auto')).toBe('unicode');
-    expect(otherMethod('keys')).toBe('unicode');
-    expect(otherMethod('unicode')).toBe('keys');
+    for (const m of ['auto', 'keys', 'unicode'] as const) expect(retryPlan(m)).toEqual({ method: 'auto', delayMs: 15 });
   });
 });
 
@@ -78,7 +76,7 @@ describe('0.9.12 type_text verifies, reports honestly, retries once with the oth
     expect(calls).toEqual([{ text: 'hello world', method: 'auto', hwnd: 7 }]);
   });
 
-  it('garbled text: ok:false, says it didn’t come out right, names Input Director, offers ONE retry with the other method', async () => {
+  it('garbled text: ok:false, says it didn’t come out right, names Input Director, offers ONE retry (real keystrokes, slower)', async () => {
     const { host, calls } = notepad((t, m) => (m === 'unicode' ? shift(t) : t));
     host.typingMethod = () => 'unicode';
     const res = await host.typeText({ text: 'hello world' });
@@ -90,10 +88,11 @@ describe('0.9.12 type_text verifies, reports honestly, retries once with the oth
     expect(msg).toMatch(/ifmmp!xpsme/); // what arrived, fenced as screen data
     expect(msg).toMatch(/real keystrokes/);
     expect(host.run!.typeMismatches).toBe(1);
-    // The retry uses the other method automatically and works.
+    // The retry uses real keystrokes, slower, automatically, and works.
     const again = await host.typeText({ text: 'hello world' });
     expect(again.isError).toBeFalsy();
-    expect(calls.map((c) => c.method)).toEqual(['unicode', 'keys']);
+    expect(calls.map((c) => c.method)).toEqual(['unicode', 'auto']);
+    expect(calls[1]).toMatchObject({ method: 'auto', delayMs: 15 });
     expect(host.run!.typeMismatches).toBe(0);
   });
 
@@ -103,8 +102,8 @@ describe('0.9.12 type_text verifies, reports honestly, retries once with the oth
     expect((await host.typeText({ text: 'hello world' })).isError).toBe(true);
     const second = await host.typeText({ text: 'hello world' });
     expect(second.isError).toBe(true);
-    expect((second.content[0] as any).text).toMatch(/still didn't come out right.*with both typing methods.*Stop typing.*Input Director is the likely cause/s);
-    expect(calls.map((c) => c.method)).toEqual(['auto', 'unicode']);
+    expect((second.content[0] as any).text).toMatch(/still didn't come out right.*even typed slowly.*Stop typing.*Input Director may be the cause/s);
+    expect(calls.map((c) => c.method)).toEqual(['auto', 'auto']);
     const third = await host.typeText({ text: 'hello world' });
     expect(third.isError).toBe(true);
     expect(calls.length).toBe(2); // nothing typed again: no clear-and-retype loop

@@ -7,7 +7,7 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
 > [!WARNING]
-> **Public beta (0.9.12).** Cadabra OS works day to day for its developers, but it's a beta: expect rough edges.
+> **Public beta (0.9.13).** Cadabra OS works day to day for its developers, but it's a beta: expect rough edges.
 >
 > - **Tested:** Windows 11 x64; Claude with a Claude subscription (through Claude Code); voice, wake word and the natural voices; WhatsApp; Gmail with your own Google key; skills; announcements.
 > - **Not tested yet** (no accounts or hardware to try them): OpenAI Codex, Gemini, GitHub Copilot, Claude with an API key (only tested against a fake server so far), including web search, Claude via Bedrock or Vertex, Gmail app passwords, the Southern cloud voices, Windows 10, ARM64 PCs, non-US keyboards and input methods, and more. **[Help us test](#help-us-test).**
@@ -54,7 +54,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 ## Install
 
-1. Download `CadabraOS-Setup-0.9.12.exe` from the releases page, or [build it yourself](#build-from-source).
+1. Download `CadabraOS-Setup-0.9.13.exe` from the releases page, or [build it yourself](#build-from-source).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen warns: choose **More info → Run anyway**. It installs per user, with no admin prompt.
 3. A short setup opens in the panel: try the shortcut, choose what to be called, connect your AI (with a live test), and optionally turn on voice. You can reopen it from the tray (**Set up Cadabra…**).
 
@@ -68,7 +68,7 @@ You need Node.js 24 (see `.nvmrc`), Rust stable (MSVC) and the Visual Studio C++
 npm ci
 npm run build:native   # the Rust helper
 npm start              # build the JS and run the app
-npm run dist           # → dist/CadabraOS-Setup-0.9.12.exe (NSIS, per-user)
+npm run dist           # → dist/CadabraOS-Setup-0.9.13.exe (NSIS, per-user)
 ```
 
 Handy dev modes: `npm run demo` (visual preview stage with every state), `npm run demo:live` (real windows, offline backend, no hooks) and `npm run screenshots`. [CONTRIBUTING.md](CONTRIBUTING.md) has the full command list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how it fits together.

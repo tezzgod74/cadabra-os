@@ -4,6 +4,14 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.13
+
+- **Fixed (for real this time): garbled typing in Windows 11 Notepad.** The cause wasn't Input Director. Notepad pauses briefly when it autocorrects a word, and characters sent as Unicode packets faster than about 15 ms apart came out as repeats of one character ("organized          that", "ooooooof ......"). Real keystrokes, the default since 0.9.12, were never affected. But 0.9.12's check treated Notepad's own autocorrect ("organised" → "organized") as a typing error. The AI then cleared the correct text and retried with Unicode, and that retry garbled it. Now:
+  - autocorrected words count as typed: Cadabra tells the AI which words the app changed, and it doesn't retype them;
+  - the single retry after a real mismatch uses real keystrokes, more slowly, never Unicode;
+  - Unicode packets (emoji, other scripts, or *Typing method: Unicode only*) are spaced at least 30 ms apart.
+- Input Director is only reported as running when its main program is running, not just its leftover session helper.
+
 ## 0.9.12
 
 - **Fixed: garbled typing with keyboard/mouse sharing tools.** Cadabra typed every character as a Unicode packet; tools with low-level keyboard hooks (Input Director here) re-inject keys by scan code and turned those packets into random letters, while Cadabra reported success. Now, by default (*Auto*), each character that exists on the target window's keyboard layout is typed as a real keystroke: the right key and scan code for that layout, with Shift or AltGr pressed and released around it. Characters a layout can only reach through a dead key, and anything not on the layout (emoji, other scripts), are still sent as Unicode. Enter, Tab and Esc-to-stop work as before.

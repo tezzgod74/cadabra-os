@@ -13,7 +13,8 @@ export interface KvmTool {
 }
 
 export const KVM_TOOLS: KvmTool[] = [
-  { name: 'Input Director', processes: ['inputdirector', 'idmaster', 'idslave', 'inputdirectorsessionhelper'] },
+  // 0.9.13: InputDirectorSessionHelper alone stays running after Input Director is shut down: not a sign it's active.
+  { name: 'Input Director', processes: ['inputdirector', 'idmaster', 'idslave'] },
   { name: 'Mouse Without Borders', processes: ['mousewithoutborders', 'mousewithoutbordershelper', 'mousewithoutbordersservice', 'powertoys.mousewithoutborders', 'powertoys.mousewithoutbordershelper', 'powertoys.mousewithoutbordersservice'] },
   { name: 'Synergy', processes: ['synergy', 'synergys', 'synergyc', 'synergy-core', 'synergy-server', 'synergy-client', 'synergy-service'] },
   { name: 'Deskflow', processes: ['deskflow', 'deskflow-core', 'deskflow-server', 'deskflow-client', 'deskflow-daemon'] },

@@ -255,8 +255,8 @@ export class HelperClient extends EventEmitter {
   inputEpoch = 0;
   click = (x: number, y: number, button: 'left' | 'right' | 'middle' = 'left', count = 1) => this.call('click', { x, y, button, count, epoch: this.inputEpoch });
   /** 0.9.12: `method` auto (real keystrokes on the target's layout, Unicode for the rest) | keys | unicode. */
-  typeText = (text: string, o: { method?: 'auto' | 'keys' | 'unicode'; hwnd?: number } = {}) =>
-    this.call<{ typed: number; method: string; keystrokes: number; unicode: number; layout: string }>('type_text', { text, epoch: this.inputEpoch, ...o }, 60000);
+  typeText = (text: string, o: { method?: 'auto' | 'keys' | 'unicode'; hwnd?: number; delayMs?: number } = {}) =>
+    this.call<{ typed: number; method: string; keystrokes: number; unicode: number; layout: string; delayMs?: number }>('type_text', { text, epoch: this.inputEpoch, ...o }, 60000);
   /** 0.9.12: the focused control's text (TextPattern / ValuePattern), to verify typing. Null text = unreadable. */
   focusedText = () => this.call<{ text: string | null; source?: string; why?: string; info: { role: string; className: string; pid: number } }>('focused_text', {}, 5000);
   pressKeys = (keys: string, repeat = 1) => this.call('press_keys', { keys, repeat, epoch: this.inputEpoch });

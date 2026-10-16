@@ -357,7 +357,13 @@ pub fn type_plan(text: &str) -> Vec<TypeStep> {
 
 /// Type the plan, checking the kill switch before every step. `send_step`
 /// performs the step (SendInput in production, a recorder in tests).
-pub fn type_with(plan: &[TypeStep], delay_ms: u64, mut send_step: impl FnMut(&TypeStep) -> Result<(), String>) -> Result<usize, String> {
+#[cfg(test)]
+pub fn type_with(plan: &[TypeStep], delay_ms: u64, send_step: impl FnMut(&TypeStep) -> Result<(), String>) -> Result<usize, String> {
+    type_with_paced(plan, |_| delay_ms, send_step)
+}
+
+/// Like type_with, with a per-step pause (0.9.13: Unicode packets need more room).
+pub fn type_with_paced(plan: &[TypeStep], pause: impl Fn(&TypeStep) -> u64, mut send_step: impl FnMut(&TypeStep) -> Result<(), String>) -> Result<usize, String> {
     let mut n = 0usize;
     for st in plan {
         if cancelled() {
@@ -365,8 +371,9 @@ pub fn type_with(plan: &[TypeStep], delay_ms: u64, mut send_step: impl FnMut(&Ty
         }
         send_step(st)?;
         n += 1;
-        if delay_ms > 0 {
-            sleep(Duration::from_millis(delay_ms));
+        let ms = pause(st);
+        if ms > 0 {
+            sleep(Duration::from_millis(ms));
         }
     }
     Ok(n)
@@ -463,6 +470,25 @@ pub fn keystroke_events(k: &KeyStroke) -> Vec<(u16, u16, bool, bool)> {
     ev
 }
 
+/// 0.9.13 (the garbled-Notepad bug): Windows turns a Unicode packet (VK_PACKET)
+/// into its character when the TARGET translates the key message, and a target
+/// that falls behind (Windows 11 Notepad pauses while it autocorrects a word)
+/// turned queued packets into repeats of one character ("organized          that",
+/// "ooooooof ......"). Measured on Notepad: packets 0 and 4 ms apart garble,
+/// 15 / 40 / 100 ms apart arrive intact; real keystrokes arrive intact even 0 ms
+/// apart. A WM_NULL round trip to the target doesn't help (Notepad handles text
+/// input asynchronously), so Unicode packets are paced at twice the measured
+/// safe gap. Real keys keep the normal pace.
+pub const UNICODE_MIN_DELAY_MS: u64 = 30;
+
+/// The pause after a step.
+pub fn step_delay(st: &TypeStep, delay_ms: u64) -> u64 {
+    match st {
+        TypeStep::Unit(_) => delay_ms.max(UNICODE_MIN_DELAY_MS),
+        _ => delay_ms,
+    }
+}
+
 pub fn type_text(p: &Value) -> RpcResult {
     let text = p.get("text").and_then(|v| v.as_str()).ok_or("missing text")?;
     if text.chars().count() > MAX_TYPE_CHARS {
@@ -483,7 +509,7 @@ pub fn type_text(p: &Value) -> RpcResult {
             _ => {}
         }
     }
-    let n = type_with(&plan, delay, |st| match st {
+    let n = type_with_paced(&plan, |st| step_delay(st, delay), |st| match st {
         TypeStep::Enter => send(&[key(VK_RETURN, false), key(VK_RETURN, true)]),
         TypeStep::Tab => send(&[key(VK_TAB, false), key(VK_TAB, true)]),
         TypeStep::Unit(u) => send(&[unicode(*u, false), unicode(*u, true)]),
@@ -492,7 +518,7 @@ pub fn type_text(p: &Value) -> RpcResult {
             send(&ev)
         }
     })?;
-    Ok(json!({"typed": n, "method": method.name(), "keystrokes": keys, "unicode": units, "layout": layout.id()}))
+    Ok(json!({"typed": n, "method": method.name(), "keystrokes": keys, "unicode": units, "layout": layout.id(), "delayMs": delay}))
 }
 
 pub fn press_keys(p: &Value) -> RpcResult {
@@ -660,6 +686,17 @@ mod tests {
             assert!(k.scan != 0);
         }
         assert_eq!(plan_for("😀", TypeMethod::Auto, &l).unwrap(), vec![TypeStep::Unit(0xD83D), TypeStep::Unit(0xDE00)]);
+    }
+
+    #[test]
+    fn unicode_packets_are_paced_but_real_keys_keep_the_normal_pace() {
+        let k = TypeStep::Key(KeyStroke { vk: 0x41, scan: 0x1E, shift: false, altgr: false });
+        assert_eq!(step_delay(&TypeStep::Unit(0x61), 4), UNICODE_MIN_DELAY_MS);
+        assert_eq!(step_delay(&TypeStep::Unit(0x61), 0), UNICODE_MIN_DELAY_MS);
+        assert_eq!(step_delay(&TypeStep::Unit(0x61), 50), 50);
+        assert!(UNICODE_MIN_DELAY_MS >= 2 * 15, "twice the gap measured safe on Windows 11 Notepad");
+        assert_eq!(step_delay(&k, 4), 4);
+        assert_eq!(step_delay(&TypeStep::Enter, 0), 0);
     }
 
     #[test]
