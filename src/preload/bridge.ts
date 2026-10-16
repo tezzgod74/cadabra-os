@@ -63,6 +63,7 @@ if (role === 'mic') {
     openMicSettings: () => ipcRenderer.send('onboard:open-mic-settings'),
     emailStatus: () => ipcRenderer.invoke('email:status'),
     announceOutputs: () => ipcRenderer.invoke('announce:outputs'),
+    clearHistory: () => ipcRenderer.invoke('history:clear'),
     announceTest: () => ipcRenderer.invoke('announce:test'),
     skillsList: () => ipcRenderer.invoke('skills:list'),
     skillsSetEnabled: (id: string, on: boolean) => ipcRenderer.invoke('skills:set-enabled', String(id), !!on),

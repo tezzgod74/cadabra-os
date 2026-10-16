@@ -7,7 +7,7 @@ Press **Ctrl + ~** anywhere, or just say **"Cadabra, …"**, and a frosted-glass
 ![The Cadabra panel answering over a mail app](docs/screenshots/06-panel-answer.png)
 
 > [!WARNING]
-> **Public beta (0.9.8).** Cadabra OS works day to day for its developers, but it's a beta: expect rough edges.
+> **Public beta (0.9.9).** Cadabra OS works day to day for its developers, but it's a beta: expect rough edges.
 >
 > - **Tested:** Windows 11 x64; Claude with a Claude subscription (through Claude Code); voice, wake word and the natural voices; WhatsApp; Gmail with your own Google key; skills; announcements.
 > - **Not tested yet** (no accounts or hardware to try them): OpenAI Codex, Gemini, GitHub Copilot, Claude with an API key (only tested against a fake server so far), including web search, Claude via Bedrock or Vertex, Gmail app passwords, the Southern cloud voices, Windows 10, ARM64 PCs, non-US keyboards and input methods, and more. **[Help us test](#help-us-test).**
@@ -54,7 +54,7 @@ More in [docs/screenshots](docs/screenshots/). They show a synthetic demo deskto
 
 ## Install
 
-1. Download `CadabraOS-Setup-0.9.8.exe` from the releases page, or [build it yourself](#build-from-source).
+1. Download `CadabraOS-Setup-0.9.9.exe` from the releases page, or [build it yourself](#build-from-source).
 2. Run it. The installer isn't signed yet, so Windows SmartScreen warns: choose **More info → Run anyway**. It installs per user, with no admin prompt.
 3. A short setup opens in the panel: try the shortcut, choose what to be called, connect your AI (with a live test), and optionally turn on voice. You can reopen it from the tray (**Set up Cadabra…**).
 
@@ -68,7 +68,7 @@ You need Node.js 24 (see `.nvmrc`), Rust stable (MSVC) and the Visual Studio C++
 npm ci
 npm run build:native   # the Rust helper
 npm start              # build the JS and run the app
-npm run dist           # → dist/CadabraOS-Setup-0.9.8.exe (NSIS, per-user)
+npm run dist           # → dist/CadabraOS-Setup-0.9.9.exe (NSIS, per-user)
 ```
 
 Handy dev modes: `npm run demo` (visual preview stage with every state), `npm run demo:live` (real windows, offline backend, no hooks) and `npm run screenshots`. [CONTRIBUTING.md](CONTRIBUTING.md) has the full command list, and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how it fits together.
@@ -119,6 +119,8 @@ You are responsible for complying with your providers' terms. Cadabra OS is not 
 - **The Cadabra project has no server.** There is no telemetry, analytics or account.
 - **Secrets** (API keys, tokens) are encrypted with Windows DPAPI. Logs (`%APPDATA%\Cadabra OS\logs\`) never contain typed text, email content, keys or tokens.
 - **Export diagnostics…** in the tray creates a redacted bundle for bug reports. Review it before sharing it.
+- **Clear chat history:** the 🗑 button in the panel, Settings → Privacy, the tray, or just say *"clear my history"* (also from WhatsApp). After you confirm, it removes your conversations from Cadabra on this PC (the panel and the WhatsApp conversation), ends the AI sessions so they start fresh, and deletes Cadabra's own session and temp files. It keeps your settings, skills, keys and WhatsApp pairing, and never touches your own Claude Code, Codex or Gemini folders. **It can't remove copies elsewhere:** the chat on your phone (delete it in WhatsApp; Meta keeps agent messages for up to 30 days) and whatever your AI provider keeps under its own policy ([Anthropic](https://privacy.anthropic.com), [OpenAI](https://openai.com/policies/privacy-policy), [Google](https://support.google.com/gemini/answer/13594961), [GitHub](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)).
+- **Keep chat history** (Settings → Privacy): *Until I clear it* (default), *Clear when Cadabra closes*, or *Clear after 1 hour of inactivity*. Leftover temp files older than a day are always cleaned up at startup.
 
 ## Safety and autonomy
 

@@ -22,7 +22,9 @@ export type Intent =
   /** Round 8: "lock my PC" (LockWorkStation, like Win+L). */
   | { kind: 'lock-pc'; force: boolean }
   /** 0.9.5: "create a new skill called X" → Settings → Skills with the name filled in. */
-  | { kind: 'new-skill'; name: string };
+  | { kind: 'new-skill'; name: string }
+  /** 0.9.9: "clear my history", "delete our conversation", "forget this conversation". */
+  | { kind: 'clear-history' };
 
 const PROVIDER_WORDS: [RegExp, ProviderId][] = [
   [/^(claude|clod|cloud|anthropic)$/, 'claude'],
@@ -115,6 +117,7 @@ export function parseIntent(text: string, ctx: { models?: ModelOption[]; wakeWor
   if (/^(resume|wake up|unpause|un-pause)$/.test(t)) return { kind: 'resume' };
 
   if (/^(new chat|start over|start a new chat|clear( the)? chat|reset)$/.test(t)) return { kind: 'new-chat' };
+  if (/^(?:please )?(?:clear|delete|erase|wipe|forget|remove)(?: all)? (?:of )?(?:my|our|the|this)? ?(?:chat |conversation |message )?(?:history|histories|conversations?|chats?|messages)(?: history)?(?: please)?$/.test(t)) return { kind: 'clear-history' };
   const sk = /^(?:please )?(?:create|make|add|start|set up) (?:a |me a )?(?:new )?skill(?: (?:called|named) (.{1,48}))?$/.exec(t);
   if (sk) return { kind: 'new-skill', name: (sk[1] ?? '').trim() };
   // A1: "call me Alex" / "my name is Alex" / "don't use my name".

@@ -52,6 +52,7 @@ interface Api {
   openMicSettings(): void;
   emailStatus?(): Promise<EmailStatus | null>;
   announceOutputs?(): Promise<string[]>;
+  clearHistory?(): Promise<string | null>;
   announceTest?(): Promise<{ ok: boolean; reason?: string } | null>;
   skillsList?(): Promise<{ skills: SkillView[]; userDir: string; builtinDir: string } | null>;
   skillsSetEnabled?(id: string, on: boolean): Promise<boolean>;
@@ -127,7 +128,7 @@ function makeDemoApi(): Api {
     secrets: { anthropicApiKey: true },
     encryption: true,
     voice: { state: 'idle', engine: 'sherpa-onnx' },
-    version: '0.9.8',
+    version: '0.9.9',
   };
   return {
     onMessage: (cb) => demoChannel(cb),
@@ -181,6 +182,7 @@ function makeDemoApi(): Api {
     emailConnectOAuth: async () => ({ ok: true, status: (demoEmail = { ...demoEmail, mode: 'gmail-oauth', connected: true, address: 'you@gmail.com' }) }),
     emailConnectImap: async () => ({ ok: true, status: (demoEmail = { ...demoEmail, mode: 'gmail-imap', connected: true, address: 'you@gmail.com' }) }),
     emailDisconnect: async () => (demoEmail = { ...demoEmail, mode: 'none', connected: false, address: '' }),
+    clearHistory: async () => 'Done — history cleared.',
     announceOutputs: async () => ['Speakers (High Definition Audio)', 'Living Room Speaker (Bluetooth)', 'Headphones (USB Audio)'],
     announceTest: async () => ({ ok: true }),
     skillsList: async () => ({ skills: demoSkills, userDir: 'C:\\Users\\you\\Documents\\Cadabra\\Skills', builtinDir: 'C:\\Program Files\\Cadabra OS\\resources\\skills' }),
@@ -671,6 +673,8 @@ async function openPicker() {
 
 pill.onclick = () => (picker.hidden ? void openPicker() : (picker.hidden = true));
 $('picker-close').onclick = () => (picker.hidden = true);
+// 0.9.9: "Clear chat history…" asks first (a card from the app), then clears everything.
+$('clear-history').onclick = () => void api.clearHistory?.();
 $('new-chat').onclick = () => {
   api.newChat();
   resetChat();
@@ -979,6 +983,11 @@ async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string
       </div>
       <div class="s-group"><h4>WhatsApp</h4><div id="s-wa"></div></div>
       <div class="s-group"><h4>Email</h4><div id="s-email"></div></div>
+      <div class="s-group" id="s-privacy-group"><h4>Privacy</h4>
+        <div class="s-row"><div class="s-label">Keep chat history<small>Your conversations are mostly kept in memory anyway; this also covers the AI session files ${nm} keeps on this PC.</small>
+          <select id="s-keep-history"><option value="until-cleared">Until I clear it</option><option value="on-close">Clear when ${nm} closes</option><option value="idle-1h">Clear after 1 hour of inactivity</option></select></div></div>
+        <div class="s-row"><div class="s-label">Clear chat history<small>Removes your conversations from ${nm} on this PC (both the panel and WhatsApp), ends the AI sessions so they start fresh, and deletes ${nm}’s own session and temp files. Keeps your settings, skills, keys and WhatsApp pairing. It can’t remove copies elsewhere: the chat on your phone (delete it in WhatsApp; Meta keeps agent messages up to 30 days) or what your AI provider keeps under its own policy.</small></div><button type="button" class="btn ghost" id="s-clear-history">Clear…</button></div>
+      </div>
       <div class="s-group" id="s-ann-group"><h4>Announcements</h4>
         <p class="s-note">Say “${nm}, make an announcement: dinner is ready”, or send <b>Announcement: …</b> from WhatsApp, and the PC says it out loud, word for word. It works while the PC is locked and even when spoken replies are off. Esc stops it.</p>
         <div class="s-row"><div class="s-label">Chime first<small>A short, soft chime before the announcement.</small></div>${toggle(s.announcements?.chime !== false, 'ann-chime')}</div>
@@ -1063,6 +1072,17 @@ async function showSettings(focus?: 'shortcut' | 'skills', newSkillName?: string
   locIn.value = s.location ?? '';
   locIn.onchange = () => void api.setSettings({ location: locIn.value.trim() });
   void renderEmailSettings(settingsEl.querySelector<HTMLDivElement>('#s-email')!, s.provider);
+  // 0.9.9: privacy.
+  const keepSel = settingsEl.querySelector<HTMLSelectElement>('#s-keep-history')!;
+  keepSel.value = s.privacy?.keepHistory ?? 'until-cleared';
+  keepSel.onchange = async () => {
+    const u = await api.setSettings({ privacy: { keepHistory: keepSel.value } });
+    if (u) Object.assign(s, u);
+  };
+  settingsEl.querySelector<HTMLButtonElement>('#s-clear-history')!.onclick = () => {
+    settingsEl.hidden = true; // the confirm card shows in the chat view
+    void api.clearHistory?.();
+  };
   // 0.9.6: announcements.
   const annRep = settingsEl.querySelector<HTMLSelectElement>('#s-ann-repeat')!;
   annRep.value = String(s.announcements?.repeat ?? 1);

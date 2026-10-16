@@ -127,6 +127,8 @@ export interface Settings {
   claudeApiWeb: boolean;
   /** 0.9.5: skills the user turned on or off, by id ("user:quick-note"). Missing = default (built-ins on, others off). */
   skills: { enabled: Record<string, boolean> };
+  /** 0.9.9: how long chat history is kept (it's mostly in memory anyway). */
+  privacy: { keepHistory: 'until-cleared' | 'on-close' | 'idle-1h' };
   /** 0.9.6: announcements (spoken verbatim on the PC). */
   announcements: import('./announce').AnnouncementSettings;
   /** Round 7: "Your location" (a city) for weather; '' = ask once in conversation. Never guessed from the IP. */

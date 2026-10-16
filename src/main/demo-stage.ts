@@ -49,6 +49,7 @@ export const DEMO_STATES = [
   'claude-test-ok',
   'settings-skills',
   'settings-announcements',
+  'settings-privacy',
 ] as const;
 
 /**

@@ -253,6 +253,12 @@ export class ClaudeProvider implements ProviderAdapter {
     void this.dropCli('new chat or settings change');
   }
 
+  /** Stop the Claude Code process for good (quit, "Clear chat history"); its session files are removed. */
+  async dispose(): Promise<void> {
+    while (this.cliStarting) await this.cliStarting.catch(() => undefined);
+    await this.dropCli('shut down');
+  }
+
   private async dropCli(reason: string): Promise<void> {
     const c = this.cli;
     this.cli = null;

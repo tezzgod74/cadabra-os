@@ -32,6 +32,7 @@ import { personaContext, voiceDialect } from '../shared/persona';
 import { Greeter, inQuietHours } from './greeter';
 import { Announcer, announceReply } from './announce';
 import { LOCKED_REPLY, RemotePresence } from './remote-presence';
+import { CLEAR_HISTORY_NOTE, clearHistoryFiles, idleClearDue, ORPHAN_AGE_MS, type HistoryPaths } from './history';
 import { addDuckRecords, readDuckRecords, removeDuckRecords } from './duck-records';
 import { parseLocalAnnouncement } from '../shared/announce';
 import { WhatsAppClient } from './whatsapp/client';
@@ -332,6 +333,7 @@ export class CadabraApp {
     this.tools.presence = { screen: () => this.presence.ensureScreen(), state: async () => (this.helper ? this.helper.desktopState().catch(() => null) : null) };
     this.applyKeepAwake();
     this.settings.onChange(() => this.applyKeepAwake());
+    this.startupHistoryCleanup();
     const models = resourcePath('models');
     this.voice = fs.existsSync(path.join(models, 'kws'))
       ? new SherpaVoiceEngine({ modelsDir: models, userData: app.getPath('userData'), settings: () => this.settings.get().voice, asrDirOverride: process.env.CADABRA_ASR_DIR, openaiKey: () => this.settings.getSecret('openaiApiKey') })
@@ -1087,6 +1089,7 @@ export class CadabraApp {
       rememberLocation: (city) => this.rememberLocation(city),
       localLaunch: (text) => this.tryLocalLaunch(text),
       localIntent: async (text) => {
+        this.noteHistoryActivity();
         // 0.9.6: announcements are spoken verbatim, never sent to the AI.
         const ann = await this.localAnnouncement(text);
         if (ann != null) return ann;
@@ -1320,6 +1323,87 @@ export class CadabraApp {
     log: (l) => console.log(l),
   });
   private keepAwakeId: number | null = null;
+
+  // ------------------------------------------------------ chat history (0.9.9)
+  /** Cadabra's own folders that can hold conversation content (history.ts). */
+  historyPaths(): HistoryPaths {
+    const ud = app.getPath('userData');
+    const homes = this.opts.providerHomes ?? ud;
+    return {
+      userData: ud,
+      agentWork: path.join(ud, 'agent-work'),
+      codexHome: path.join(homes, 'codex-home'),
+      geminiHome: path.join(homes, 'gemini-home'),
+      claudeConfig: path.join(ud, 'claude-api-config'),
+      e2eReports: path.join(ud, 'e2e-live'),
+      temp: os.tmpdir(),
+    };
+  }
+
+  private lastHistoryActivity: number | null = null;
+  private historyTimer: NodeJS.Timeout | null = null;
+
+  /** Note conversation activity (for "Clear after 1 hour of inactivity"). */
+  noteHistoryActivity(): void {
+    this.lastHistoryActivity = Date.now();
+  }
+
+  /**
+   * "Clear chat history": everything Cadabra holds that contains conversation
+   * content, in memory and in its own folders. Keeps settings, skills, grants,
+   * keys and pairing. Never touches the user's own CLI folders.
+   */
+  async clearHistory(reason: string, from?: 'pc' | 'whatsapp'): Promise<number> {
+    // The turn that asked (a local "clear my history") ends by itself; stop any other work.
+    if (from !== 'pc' && this.conv.busy) this.cancelRun('History cleared.');
+    if (from !== 'whatsapp' && this.remoteConv.busy) this.remoteConv.cancel('History cleared.');
+    for (const resolve of this.confirms.values()) resolve(false);
+    this.confirms.clear();
+    this.conv.newChat();
+    this.remoteConv.newChat();
+    this.remoteReply = '';
+    this.remoteImage = undefined;
+    await Promise.all(Object.values(this.providers).map((p) => (p.dispose ? p.dispose().catch(() => undefined) : Promise.resolve(p.reset?.()))));
+    const removed = clearHistoryFiles(this.historyPaths());
+    this.lastHistoryActivity = null;
+    sendPanel(this.panel, { type: 'reset' });
+    sendPanel(this.panel, { type: 'notice', text: 'History cleared.', tone: 'info' });
+    console.log(`[history] cleared (${reason}; ${removed.length} file(s) removed)`);
+    return removed.length;
+  }
+
+  /** Ask first (panel card / spoken yes-no on the PC; a one-time code in WhatsApp), then clear. */
+  async askClearHistory(channel: 'pc' | 'whatsapp', spoken = false, fromTurn = true): Promise<string> {
+    const ok = await this.confirm(
+      {
+        title: 'Clear all chat history?',
+        detail: CLEAR_HISTORY_NOTE,
+        risk: 'This can’t be undone',
+        kind: 'question',
+        channel,
+        timeoutMs: 60_000,
+        ...(spoken ? { spoken: 'Clear all chat history? Say yes to confirm.' } : {}),
+      },
+      new AbortController().signal,
+    );
+    if (ok !== true && ok !== 'always') return 'Okay, I kept your history.';
+    await this.clearHistory(channel === 'whatsapp' ? 'asked from WhatsApp' : 'asked at the PC', fromTurn ? channel : undefined);
+    return channel === 'whatsapp'
+      ? 'Done — history cleared on your PC. This chat stays on your phone: delete it in WhatsApp if you want it gone there too.'
+      : 'Done — history cleared.';
+  }
+
+  /** Startup: orphaned temp files (> 1 day) always; everything if "Clear when Cadabra closes". */
+  private startupHistoryCleanup(): void {
+    const mode = this.settings.get().privacy?.keepHistory ?? 'until-cleared';
+    const removed = clearHistoryFiles(this.historyPaths(), mode === 'on-close' ? {} : { olderThanMs: ORPHAN_AGE_MS });
+    if (removed.length) console.log(`[history] startup clean-up: ${removed.length} old file(s) removed`);
+    this.historyTimer = setInterval(() => {
+      const m = this.settings.get().privacy?.keepHistory ?? 'until-cleared';
+      if (idleClearDue(m, this.lastHistoryActivity, Date.now(), this.conv.busy || !!this.remote?.busy)) void this.clearHistory('1 hour without activity');
+    }, 60_000);
+    this.historyTimer.unref?.();
+  }
 
   /** "Keep this PC awake while remote access is on" (prevents sleep; the display may still turn off). */
   private applyKeepAwake(): void {
@@ -1671,6 +1755,8 @@ export class CadabraApp {
         return i.enabled ? 'Okay, I’ll say hello when you come back.' : 'Okay, no more greetings.';
       case 'lock-pc':
         return this.lockPc(i.force);
+      case 'clear-history':
+        return this.askClearHistory('pc', this.conv.speaking || this.voiceState !== 'idle');
       case 'new-skill':
         this.openSkills(i.name || undefined);
         return i.name ? `Opening Settings → Skills to create “${i.name}”.` : 'Opening Settings → Skills: give your new skill a name there.';
@@ -1709,6 +1795,13 @@ export class CadabraApp {
       },
       localLaunch: async () => null,
       localWeather: async () => null,
+      // 0.9.9: "clear my history" from WhatsApp asks with a one-time code in the chat.
+      localIntent: async (text) => {
+        this.noteHistoryActivity();
+        const intent = parseIntent(text, { models: [], wakeWord: this.settings.get().voice.wakeWord });
+        if (intent?.kind === 'clear-history') return this.askClearHistory('whatsapp');
+        return base.localIntent ? base.localIntent(text) : null;
+      },
       gate: { beginRun: () => this.gate.beginRun('whatsapp'), stop: () => this.gate.stop('whatsapp') },
       blocked: () => null,
       setRun: (run) => {
@@ -2334,6 +2427,8 @@ export class CadabraApp {
     ipcMain.handle('panel:providers', (e) => (fromPanel(e) ? this.allProviders() : []));
     ipcMain.handle('panel:set-model', (e, p: ProviderId, m: string) => (fromPanel(e) ? this.setModel(p, m) : undefined));
     ipcMain.on('panel:new-chat', (e) => fromPanel(e) && this.newChat());
+    // 0.9.9: "Clear chat history…" (panel button, Settings → Privacy): asks with a card first.
+    ipcMain.handle('history:clear', async (e) => (fromPanel(e) ? this.askClearHistory('pc', false, false) : null));
     ipcMain.on('panel:launch-app', (e, id: string) => {
       if (!fromPanel(e)) return;
       const a = this.appIndex.get(id);
@@ -2886,6 +2981,7 @@ export class CadabraApp {
       },
       { label: 'Settings…', click: () => this.openSettings() },
       { label: 'Skills…', click: () => this.openSkills() },
+      { label: 'Clear chat history…', click: () => void this.showPanelCentered().then(() => this.askClearHistory('pc', false, false)) },
       { label: 'Set up Cadabra…', click: () => void this.openOnboarding() },
       { label: 'Export diagnostics…', click: () => void this.exportDiagnostics() },
       { type: 'separator' },
@@ -2901,9 +2997,15 @@ export class CadabraApp {
     this.quitting = true;
     this.cancelRun();
     this.remote.stopLoop();
+    if (this.historyTimer) clearInterval(this.historyTimer);
     await this.stopVoice();
     await Promise.all(Object.values(this.providers).map((p) => p.dispose?.().catch(() => undefined)));
     this.providers.claude.reset?.();
+    // 0.9.9: "Clear when Cadabra closes".
+    if ((this.settings.get().privacy?.keepHistory ?? 'until-cleared') === 'on-close') {
+      const n = clearHistoryFiles(this.historyPaths()).length;
+      console.log(`[history] cleared on close (${n} file(s) removed)`);
+    }
     await this.mcp?.close().catch(() => undefined);
     await this.helper?.stop();
     this.tray?.destroy();

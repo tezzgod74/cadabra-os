@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   claudeApiWeb: true,
   skills: { enabled: {} },
   announcements: { ...DEFAULT_ANNOUNCEMENTS },
+  privacy: { keepHistory: 'until-cleared' },
   location: '',
   micNotCall: [],
   greetings: { enabled: true, awayMinutes: 20, quietStart: '', quietEnd: '', recent: [] },
@@ -64,6 +65,7 @@ export function mergeSettings(raw: unknown, defaults: Settings = DEFAULT_SETTING
   if (typeof raw.webAccess === 'boolean') out.webAccess = raw.webAccess;
   if (typeof raw.claudeApiWeb === 'boolean') out.claudeApiWeb = raw.claudeApiWeb;
   if (isObj(raw.announcements)) out.announcements = mergeAnnouncements(raw.announcements);
+  if (isObj(raw.privacy) && (raw.privacy.keepHistory === 'until-cleared' || raw.privacy.keepHistory === 'on-close' || raw.privacy.keepHistory === 'idle-1h')) out.privacy = { keepHistory: raw.privacy.keepHistory };
   if (isObj(raw.skills) && isObj(raw.skills.enabled)) {
     for (const [k, v] of Object.entries(raw.skills.enabled).slice(0, 500)) if (/^(builtin|install|user):[^\p{Cc}<>:"/\\|?*]{1,100}$/u.test(k) && typeof v === 'boolean') out.skills.enabled[k] = v;
   }
@@ -165,7 +167,7 @@ export function applyPatch(cur: Settings, patch: Partial<Settings>): Settings {
 export function sanitizeRendererPatch(raw: unknown): Partial<Settings> {
   if (!isObj(raw)) return {};
   const out: Record<string, unknown> = {};
-  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'claudeApiWeb', 'location', 'greetings', 'announcements'] as const) {
+  for (const k of ['provider', 'models', 'launchAtLogin', 'paused', 'motion', 'voice', 'summon', 'displayName', 'onboarded', 'webAccess', 'claudeApiWeb', 'location', 'greetings', 'announcements', 'privacy'] as const) {
     if (k in raw) out[k] = raw[k];
   }
   // Only the autonomy level is a renderer preference (grants have their own IPC). A partial

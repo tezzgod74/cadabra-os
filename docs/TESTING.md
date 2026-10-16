@@ -132,6 +132,14 @@ Try this on a PC (or Windows account) without Claude Code.
 - [ ] Voice notes and pictures work. *"Show me my screen"* sends a screenshot only when asked.
 - [ ] With the PC locked, it says so and does nothing.
 
+### Clear chat history
+
+- [ ] Have a short conversation, then press the 🗑 button in the panel. A card asks *"Clear all chat history?"* with the note about copies elsewhere. **Not now** keeps everything; **Allow** empties the panel and shows *"History cleared."*
+- [ ] Say *"Cadabra, clear my history"*: it asks out loud (*"Say yes to confirm"*); say yes and it answers *"Done — history cleared."*
+- [ ] From WhatsApp send *"forget this conversation"*: it asks for a one-time code in the chat; after the code it confirms, and the next request starts fresh.
+- [ ] Settings → Privacy → *Clear when Cadabra closes*: quit and restart; `%APPDATA%\Cadabra OS\agent-work` has no `claude-*` session files left.
+- [ ] Settings, skills, keys and WhatsApp pairing are all still there afterwards.
+
 ### Using Cadabra while you're away
 
 - [ ] Let the display turn off (or turn the monitor's power-saving on), then from WhatsApp ask *"what's on my screen?"*. The display comes back on, Cadabra answers, and the display can turn off again afterwards. Diagnostics show `[remote] waking the display …` and `[remote] display on after … ms`.

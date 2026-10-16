@@ -4,6 +4,12 @@ All notable changes to Cadabra OS are listed here. The project follows [Semantic
 
 ## Unreleased
 
+## 0.9.9
+
+- **Clear chat history:** a 🗑 button in the panel, Settings → Privacy, the tray, or say *"clear my history"* / *"delete our conversation"* / *"forget this conversation"* (also from WhatsApp). It always asks first (a card at the PC, a spoken yes/no by voice, a one-time code in WhatsApp). It clears the panel and both conversation contexts (PC and WhatsApp), stops the AI sessions so they start fresh, and deletes Cadabra's own session and temp files (backend working files, Codex/Gemini/Claude Code session history in Cadabra's private folders, terminal output, test reports). It keeps settings, skills, grants, keys and WhatsApp pairing, and never touches your own `~/.claude`, `~/.codex` or `~/.gemini`. Copies elsewhere (your phone's chat, your AI provider's retention) are explained, not hidden.
+- **Keep chat history** (Settings → Privacy): until I clear it (default), clear when Cadabra closes, or clear after 1 hour of inactivity. Orphaned temp files older than a day are always removed at startup.
+- Fixed: Claude Code's per-session files (including a short-lived local access token) were left behind in `agent-work` when Cadabra quit; the Claude backend is now shut down properly.
+
 ## 0.9.8
 
 - **Fixed: WhatsApp requests failing while you're away.** With the display off (and, on some PCs, the monitor dropped from the desktop entirely), screenshots and screen reading failed at once and were logged only as "error". Cadabra now wakes the display for a WhatsApp request (resetting the display timer plus one zero-distance mouse nudge), waits up to 3 s for it, and keeps it on until the request is done.
